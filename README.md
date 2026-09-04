@@ -179,6 +179,9 @@ that had already passed, nudged again three days later, received *"bahut message
 band karo"*, and lost ₹39,522 to an opt-out. The model-advised planner stayed quiet and the
 customer paid.
 
+Both audit trails are committed side by side in [`results/case_0134.md`](results/case_0134.md),
+so the claim can be checked without running anything.
+
 One case in five hundred, entirely explained by reading a Hinglish date. The report prints the
 comparison in both directions; the deterministic planner beat the model on zero cases. On reading
 replies overall the model scores 92.3% against the regular expressions' 91.6% — a much smaller gap

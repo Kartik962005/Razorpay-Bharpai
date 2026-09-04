@@ -6,6 +6,7 @@ the default Windows console encoding cannot represent the symbol.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -243,10 +244,10 @@ def _model_section(results: dict) -> list[str]:
 
 #: Roman-script Hindi function words. Three or more in a message is Hinglish; fewer is English
 #: with a Hindi sign-off, which is the failure mode this metric exists to catch.
-_HINDI = __import__("re").compile(
+_HINDI = re.compile(
     r"\b(ka|ki|ke|nahi|hua|karein|kar|abhi|aapka|aapke|hai|bhejein|liye|se|par|ho|gaya|"
     r"dijiye|kripya|yahan|kyunki|dobara|kal|aaj|paise|paisa)\b",
-    __import__("re").IGNORECASE,
+    re.IGNORECASE,
 )
 
 
@@ -396,11 +397,23 @@ def case(
 
     path = out / f"audit_{policy}.jsonl"
     if not path.exists():
-        console.print(f"[red]no audit log at {path}; run `wapsi simulate` first[/red]")
+        # Audit logs are large and regenerated deterministically, so they are not committed.
+        # Say how to produce them rather than just reporting their absence.
+        console.print(
+            f"[yellow]No audit log at {path}.[/yellow]\n"
+            "Audit logs are generated, not committed. Produce them with:\n\n"
+            "  [bold]wapsi simulate[/bold]        (about 40 seconds, no keys needed)\n\n"
+            "A worked example of one case is committed at "
+            "[bold]results/case_0134.md[/bold] if you would rather just read one."
+        )
         raise typer.Exit(1)
     entries = [e for e in AuditLog.read(path) if e.case_id == case_id]
     if not entries:
-        console.print(f"[yellow]no entries for {case_id} in {path}[/yellow]")
+        known = sorted({e.case_id for e in AuditLog.read(path)})[:5]
+        console.print(
+            f"[yellow]No entries for {case_id} in {path}.[/yellow]\n"
+            f"Cases in this log look like: {', '.join(known)}"
+        )
         raise typer.Exit(1)
     console.print(format_timeline(entries))
 
