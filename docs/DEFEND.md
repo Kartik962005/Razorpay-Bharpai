@@ -109,9 +109,17 @@ that turns this from a defensible estimate into a measurement.
 
 Because that is what Indian merchants actually send, and a message in the customer's register
 converts better than one in the merchant's. The simulation gives a 15% lift for a language match.
-The model was asked for Hinglish 28 times in the batch and produced genuine Hinglish 28 times —
-after a prompt fix, because the first version produced English with a Hindi sign-off, which the
-report now measures so it cannot regress silently.
+The model was asked for Hinglish 36 times in the final batch and produced genuine Hinglish 36
+times — after a prompt fix, because the first version produced English with a Hindi sign-off,
+which the report now measures so it cannot regress silently.
+
+### "Half your model calls failed."
+
+Yes — 292 of 600 in the final batch, a free tier's daily quota after a day of runs. Say it before
+they do, then say why it did not matter: every failed call fell back to a template, the run
+completed, the numbers are reported, and the batch result does not depend on the model at all — it
+runs identically with no key. A system whose correctness survives its model being unavailable half
+the time is the design, not an accident.
 
 ---
 

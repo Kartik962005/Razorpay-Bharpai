@@ -5,6 +5,7 @@
     "scale": 1.0,
     "policies": [
       "do_nothing",
+      "platform",
       "naive",
       "rules",
       "agent"
@@ -128,6 +129,133 @@
       "strict_net_paise": 8314260,
       "contacts_per_recovery": 0.0,
       "median_hours_to_recovery": 24.0
+    },
+    {
+      "policy": "platform",
+      "cases": 500,
+      "recovered": 141,
+      "recovered_by_agent": 82,
+      "recovered_organic": 59,
+      "recovered_via_human": 0,
+      "at_risk_paise": 287556581,
+      "recovered_paise": 145480986,
+      "strict_recovered_paise": 108475558,
+      "cost_paise": 671516,
+      "contacts": 1196,
+      "retries": 268,
+      "escalations": 0,
+      "merchant_alerts": 0,
+      "opt_outs": 140,
+      "disputes": 13,
+      "violations": 0,
+      "violation_rules": {
+        "R12": 84,
+        "R13": 268,
+        "R15": 27,
+        "R05": 10,
+        "R06": 27,
+        "R14": 19,
+        "R16": 2,
+        "R20": 218,
+        "R41": 39,
+        "R10": 36,
+        "R02": 112,
+        "R23": 146,
+        "R03": 8,
+        "R24": 3
+      },
+      "false_nudges": 34,
+      "by_cause": {
+        "ABANDONED_CHECKOUT": {
+          "cases": 91,
+          "recovered": 8,
+          "at_risk_paise": 20391675,
+          "recovered_paise": 1301185,
+          "recovery_rate": 0.088
+        },
+        "CUSTOMER_ABANDON": {
+          "cases": 54,
+          "recovered": 5,
+          "at_risk_paise": 5458439,
+          "recovered_paise": 625861,
+          "recovery_rate": 0.093
+        },
+        "CUSTOMER_INPUT": {
+          "cases": 29,
+          "recovered": 5,
+          "at_risk_paise": 3374054,
+          "recovered_paise": 931456,
+          "recovery_rate": 0.172
+        },
+        "INSTRUMENT_BLOCKED": {
+          "cases": 22,
+          "recovered": 6,
+          "at_risk_paise": 6494753,
+          "recovered_paise": 1759655,
+          "recovery_rate": 0.273
+        },
+        "INSUFFICIENT_FUNDS": {
+          "cases": 98,
+          "recovered": 40,
+          "at_risk_paise": 12456372,
+          "recovered_paise": 4737631,
+          "recovery_rate": 0.408
+        },
+        "LIMIT_EXCEEDED": {
+          "cases": 28,
+          "recovered": 8,
+          "at_risk_paise": 3228072,
+          "recovered_paise": 359046,
+          "recovery_rate": 0.286
+        },
+        "MANDATE_ISSUE": {
+          "cases": 24,
+          "recovered": 3,
+          "at_risk_paise": 7097900,
+          "recovered_paise": 159700,
+          "recovery_rate": 0.125
+        },
+        "MERCHANT_CONFIG": {
+          "cases": 10,
+          "recovered": 1,
+          "at_risk_paise": 852282,
+          "recovered_paise": 120811,
+          "recovery_rate": 0.1
+        },
+        "OVERDUE_RECEIVABLE": {
+          "cases": 79,
+          "recovered": 41,
+          "at_risk_paise": 216584779,
+          "recovered_paise": 129579557,
+          "recovery_rate": 0.519
+        },
+        "RISK_DECLINE": {
+          "cases": 4,
+          "recovered": 1,
+          "at_risk_paise": 262513,
+          "recovered_paise": 104539,
+          "recovery_rate": 0.25
+        },
+        "TRANSIENT_TECH": {
+          "cases": 50,
+          "recovered": 21,
+          "at_risk_paise": 10106116,
+          "recovered_paise": 5281745,
+          "recovery_rate": 0.42
+        },
+        "UNKNOWN": {
+          "cases": 11,
+          "recovered": 2,
+          "at_risk_paise": 1249626,
+          "recovered_paise": 519800,
+          "recovery_rate": 0.182
+        }
+      },
+      "recovery_rate": 0.282,
+      "net_paise": 144809470,
+      "strict_net_paise": 107804042,
+      "contacts_per_recovery": 8.48,
+      "median_hours_to_recovery": 36.2
     },
     {
       "policy": "naive",
@@ -380,7 +508,7 @@
       "at_risk_paise": 287556581,
       "recovered_paise": 176402006,
       "strict_recovered_paise": 142890067,
-      "cost_paise": 66216,
+      "cost_paise": 66222,
       "contacts": 817,
       "retries": 254,
       "escalations": 50,
@@ -477,8 +605,8 @@
         }
       },
       "recovery_rate": 0.468,
-      "net_paise": 176335790,
-      "strict_net_paise": 142823851,
+      "net_paise": 176335784,
+      "strict_net_paise": 142823845,
       "contacts_per_recovery": 3.49,
       "median_hours_to_recovery": 25.3
     }

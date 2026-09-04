@@ -277,11 +277,13 @@ def _writing_section(name: str, result) -> list[str]:
         f"- guardrail rejections (R40), replaced by a template: {rejected}",
     ]
     if hinglish_asked:
-        lines.append(
+        line = (
             f"- asked for Hinglish {len(hinglish_asked)} times; genuinely Hinglish "
-            f"{hinglish_real} ({hinglish_real / len(hinglish_asked):.0%}) — the rest were English "
-            "with a Hindi sign-off"
+            f"{hinglish_real} ({hinglish_real / len(hinglish_asked):.0%})"
         )
+        if hinglish_real < len(hinglish_asked):
+            line += " — the rest were English with a Hindi sign-off"
+        lines.append(line)
     lines.append("")
     return lines
 

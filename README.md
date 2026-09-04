@@ -238,9 +238,12 @@ creates a real recovery link you can see in your dashboard.
   nothing. Both are in `results/summary.json`.
 - **We count our own false nudges.** 51 customers were contacted who would have paid unprompted.
   That is a cost, and it is in the report.
-- **The model is rate-limited and budgeted.** 114 of 604 calls failed under Groq's free tier and
-  the budget ran out partway through the batch, so many messages came from templates. The run
-  completed anyway — which is what the budget is for.
+- **The model is rate-limited and budgeted.** In the final batch 292 of 600 calls failed — a free
+  tier's daily quota, after a day of runs — and the budget ran out partway through, so 850 of the
+  897 messages came from templates and 47 from the model. The run completed anyway, every
+  model-written message passed the guardrails but one, and all 36 asked for in Hinglish were
+  genuinely Hinglish. That is what the budget and the fallback are for, and the report prints these
+  numbers for every run rather than leaving them to be discovered.
 - **Retries cannot be demonstrated live.** Test mode has no server-side charge endpoint, so
   `retry_charge` reports that plainly instead of faking it, and live mode shows recovery links
   where the batch shows silent retries.
