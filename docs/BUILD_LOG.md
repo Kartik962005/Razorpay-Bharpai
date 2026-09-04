@@ -245,3 +245,26 @@ running app, passed HMAC verification against the configured secret, and was ack
 signature failure, body tampering and retry deduplication. The one step that cannot be automated —
 paying a link with `failure@razorpay` to produce a real decline — is left to a person, and the
 seed command prints the instructions for it.
+
+## 2026-09-04 — session 4, continued: the loop, on a real account
+
+**Broke:** The whole live demo was designed around UPI and the `failure@razorpay` test handle.
+The checkout offered Cards, Netbanking and Wallet — no UPI at all. Every published guide to
+testing Razorpay failures leads with `failure@razorpay`, and on this account it is unreachable.
+
+**Got out:** UPI is not enabled on the test account's payment methods, and enabling it is a
+merchant onboarding step rather than something a script can do. Netbanking works instead: test
+mode serves a mock bank page with explicit Success and Failure buttons, which produced a genuine
+decline — `error_reason=payment_failed, source=bank, step=payment_authorization`. The demo
+instructions now lead with netbanking and mention UPI as the alternative where it is enabled,
+which is the reverse of what every guide says and the opposite of what I had written.
+
+**What the run proved.** Two real failed payments and one overdue invoice were ingested from the
+account, diagnosed from Razorpay's own error fields, and — at 23:25 IST — the agent declined to
+contact anybody, scheduling the first message for 10:00 the next morning under the TRAI messaging
+window. Both `payment.failed` webhooks reached the app through the tunnel and passed signature
+verification. The recovery half of the loop happens when that window opens.
+
+That refusal is the demonstration. An agent that sends a payment link at 23:25 because the
+expected value looks good is the thing this project exists to argue against, and the log shows it
+declining to do so on live data with the rule and the deferred time recorded.
