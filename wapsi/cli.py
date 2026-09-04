@@ -25,6 +25,7 @@ app = typer.Typer(add_completion=False, help="Cause-aware revenue recovery for R
 console = Console()
 
 DEFAULT_POLICIES = "do_nothing,naive,rules"
+ALL_POLICIES = "do_nothing,naive,rules,agent"
 
 #: The console gets the columns that carry the argument; the markdown report gets everything.
 CONSOLE_COLUMNS = [
@@ -58,6 +59,9 @@ def simulate(
     policies: str = typer.Option(DEFAULT_POLICIES, help="Comma-separated policies to compare."),
     out: Path = typer.Option(RESULTS_DIR, help="Where to write the report and audit logs."),
     scale: float = typer.Option(1.0, help="Scale all behaviour priors (used by sensitivity runs)."),
+    advisor_sample: float = typer.Option(
+        1.0, help="Fraction of cases the planner model advises on, for the agent policy."
+    ),
     quiet: bool = typer.Option(False, help="Suppress the tables; still writes results."),
 ) -> None:
     """Run every policy over one identical batch and report what each recovered."""
@@ -66,6 +70,19 @@ def simulate(
     from wapsi.sim.runner import Runner
     from wapsi.sim.world import World, load_config
 
+    names = [p.strip() for p in policies.split(",") if p.strip()]
+
+    llm = None
+    if "agent" in names:
+        from wapsi.adapters.llm import LLM
+
+        llm = LLM()
+        if not llm.enabled and not quiet:
+            console.print(
+                "[yellow]no language model configured; the agent policy will fall back to "
+                "templates and rules throughout[/yellow]"
+            )
+
     policy = PolicyEngine.load()
     world = World(config=load_config(), seed=seed)
     world.behaviour_scale = scale
@@ -73,10 +90,15 @@ def simulate(
 
     out.mkdir(parents=True, exist_ok=True)
     runner = Runner(
-        world=world, cases=cases, population=population, policy=policy, results_dir=out
+        world=world,
+        cases=cases,
+        population=population,
+        policy=policy,
+        results_dir=out,
+        llm=llm,
+        advisor_sample=advisor_sample,
     )
 
-    names = [p.strip() for p in policies.split(",") if p.strip()]
     results = {}
     collected = []
     for name in names:
@@ -132,31 +154,163 @@ def _build_report(n, seed, scale, rows, collected, results) -> str:
         "",
     ]
 
-    if "rules" in results and "naive" in results:
-        lost = metrics_mod.where_agent_lost(results, "naive", "rules")
-        lines += [
-            "## Where the naive policy beat the agent",
-            "",
-            f"{len(lost)} case(s). These are cases the cause-blind policy recovered and Wapsi "
-            "did not, usually because Wapsi declined to contact someone the rules protect.",
-            "",
-        ]
+    for winner, loser, title, note in (
+        (
+            "naive",
+            "rules",
+            "Where the cause-blind policy beat the agent",
+            "cases the naive policy recovered and Wapsi did not, usually because Wapsi declined "
+            "to contact someone the rules protect",
+        ),
+        (
+            "rules",
+            "agent",
+            "Where the deterministic planner beat the model-advised one",
+            "cases the rules planner recovered and the model-advised planner did not — the "
+            "comparison that decides whether the model earns its place",
+        ),
+        (
+            "agent",
+            "rules",
+            "Where the model-advised planner beat the deterministic one",
+            "the same comparison in the other direction",
+        ),
+    ):
+        if winner not in results or loser not in results:
+            continue
+        lost = metrics_mod.where_agent_lost(results, winner, loser)
+        lines += [f"## {title}", "", f"{len(lost)} case(s) — {note}.", ""]
         if lost:
             lines.append(
                 metrics_mod.markdown_table(
-                    lost[:20],
+                    lost[:15],
                     [
                         ("case", "case"),
                         ("cause", "cause"),
                         ("amount", "amount"),
-                        ("naive_outcome", "naive"),
-                        ("rules_outcome", "wapsi"),
+                        (f"{winner}_outcome", winner),
+                        (f"{loser}_outcome", loser),
                     ],
                 )
             )
             lines.append("")
 
+    lines += _model_section(results)
     return "\n".join(lines)
+
+
+def _model_section(results: dict) -> list[str]:
+    """What the language model actually did, and how well it read people.
+
+    Reply reading is scored against what the simulated customer meant, which is the one place the
+    hidden state is allowed to be used — after the fact, to mark the agent's homework.
+    """
+
+    lines: list[str] = []
+    for name, result in results.items():
+        stats = result.llm_stats or {}
+        replies = stats.get("replies") or {}
+        if not replies.get("read"):
+            continue
+        accuracy = replies["correct"] / replies["read"]
+        caught = replies.get("hard_stops_caught", 0)
+        total_hard = replies.get("hard_stops", 0)
+        lines += [
+            f"## Reading customer replies — {name}",
+            "",
+            f"- {replies['read']} replies read, {accuracy:.1%} matched what the customer meant",
+            f"- {replies['by_model']} read by the language model, "
+            f"{replies['read'] - replies['by_model']} by pattern alone",
+            f"- opt-outs and disputes caught: {caught}/{total_hard}"
+            + (
+                " — these are matched by pattern as well as by model, so a model error cannot "
+                "keep someone in a sequence they asked to leave"
+                if total_hard
+                else ""
+            ),
+            "",
+        ]
+        if stats.get("calls"):
+            lines += [
+                f"- model calls: {stats['calls']} ({stats.get('cache_hits', 0)} served from cache, "
+                f"{stats.get('failures', 0)} failed)",
+                f"- budget exhausted mid-run: {bool(stats.get('budget_exhausted'))}",
+                "",
+            ]
+    return lines
+
+
+@app.command()
+def sensitivity(
+    n: int = typer.Option(500, help="Number of cases in the batch."),
+    seed: int = typer.Option(42, help="Batch seed."),
+    factors: str = typer.Option("0.7,1.0,1.3", help="Multipliers applied to every behaviour prior."),
+    policies: str = typer.Option(DEFAULT_POLICIES, help="Policies to compare."),
+    out: Path = typer.Option(RESULTS_DIR, help="Where to write sensitivity.md."),
+) -> None:
+    """Re-run the batch with the behaviour priors scaled up and down.
+
+    The priors are estimates from published dunning figures, not measurements of this merchant.
+    If the ranking of the policies survives a 30% error in either direction, the conclusion does
+    not depend on those estimates being right. If it does not survive, the report says so.
+    """
+
+    from wapsi.core.metrics import compute
+    from wapsi.sim.generator import generate
+    from wapsi.sim.runner import Runner
+    from wapsi.sim.world import World, load_config
+
+    policy = PolicyEngine.load()
+    names = [p.strip() for p in policies.split(",") if p.strip()]
+    scales = [float(f) for f in factors.split(",") if f.strip()]
+
+    grid: dict[float, dict[str, int]] = {}
+    orders: dict[float, list[str]] = {}
+    for scale in scales:
+        console.print(f"[dim]behaviour scale {scale}...[/dim]")
+        world = World(config=load_config(), seed=seed)
+        world.behaviour_scale = scale
+        cases, population = generate(world, n=n)
+        runner = Runner(world=world, cases=cases, population=population, policy=policy)
+        grid[scale] = {name: compute(runner.run(name)).net_paise for name in names}
+        orders[scale] = sorted(names, key=lambda p: grid[scale][p], reverse=True)
+
+    baseline_order = orders[scales[0]]
+    stable = all(orders[s] == baseline_order for s in scales)
+
+    rows = [
+        {"policy": name, **{f"x{s}": metrics_mod.rupees(grid[s][name]) for s in scales}}
+        for name in names
+    ]
+    columns = [("policy", "policy")] + [(f"x{s}", f"priors x{s}") for s in scales]
+
+    console.print(_render_table(rows, columns, "net recovered under scaled behaviour priors"))
+    console.print(
+        f"\n[{'green' if stable else 'yellow'}]ranking "
+        f"{'holds' if stable else 'CHANGES'} across the range[/]"
+    )
+
+    body = [
+        "# Sensitivity",
+        "",
+        f"{n} cases, seed {seed}. Every behaviour prior in `sim/config.yaml` multiplied by each "
+        "factor, and the whole batch re-run. Net rupees recovered:",
+        "",
+        metrics_mod.markdown_table(rows, columns),
+        "",
+        (
+            "The ranking of the policies is unchanged across the range, so the conclusion does "
+            "not rest on the priors being accurate."
+            if stable
+            else "**The ranking changes across the range.** The conclusion is sensitive to the "
+            "priors, and the ordering below should be read as provisional: "
+            + "; ".join(f"at x{s}: {' > '.join(orders[s])}" for s in scales)
+        ),
+        "",
+    ]
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "sensitivity.md").write_text("\n".join(body), encoding="utf-8")
+    console.print(f"[green]wrote[/green] {out / 'sensitivity.md'}")
 
 
 @app.command()

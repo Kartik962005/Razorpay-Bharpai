@@ -74,3 +74,36 @@ class TemplateComposer:
                 else f"{ctx.scenario.value}:{ctx.language.value}:{ctx.tone.value}"
             ),
         )
+
+
+class LLMComposer(TemplateComposer):
+    """Model-written messages, with the template as an always-available floor.
+
+    Two kinds of message are deliberately never model-written: the pre-debit notice, whose
+    wording is a regulatory statement rather than persuasion, and the generic reminder used by
+    the undiagnosed baseline, which has nothing specific to say by definition.
+    """
+
+    name = "llm"
+
+    def __init__(self, policy: dict, llm):
+        super().__init__(policy)
+        self.llm = llm
+
+    def compose(self, case: Case, action: Action, link: str, now: datetime) -> Composed:
+        from wapsi.core.models import ActionType
+
+        if action.type is ActionType.SEND_PREDEBIT_NOTICE or action.params.get("generic"):
+            return super().compose(case, action, link, now)
+
+        ctx = build_context(case, action, link, self.policy)
+        text = self.llm.compose_message(ctx)
+        if text:
+            return Composed(text, llm_written=True)
+
+        composed = super().compose(case, action, link, now)
+        composed.fell_back = True
+        return composed
+
+    def stats(self) -> dict:
+        return self.llm.stats.as_dict()

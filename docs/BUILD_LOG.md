@@ -145,3 +145,69 @@ where the rule actually earns its keep — a large subscription failing for insu
 where retrying looks reasonable and is still unlawful. In the second, reading the audit log showed
 the agent behaving exactly as designed; 0 of 6 was variance. The lesson both times was to read the
 trail before changing the code.
+
+## 2026-09-04 — session 3: the language model, and keeping it on a leash
+
+**Broke:** The first model-written message read: *"Your payment of ₹1,299 failed due to
+INSTRUMENT_BLOCKED – the card was declined by the bank."* It passed every guardrail.
+
+**Got out:** Two faults. The prompt was handing the model the internal enum name as the
+explanation, so it printed it. And the validator had been written to catch threats and missing
+opt-out lines, not internal vocabulary, so nothing stopped it. The prompt now passes the
+plain-English summary, and the validator rejects any `CAPITALS_WITH_UNDERSCORES` token in customer
+text — a rule that will keep catching this class of leak long after this particular prompt
+changes.
+
+**Broke:** That new guardrail then failed its own test. The regex matched nothing at all, and the
+source line looked perfectly correct in the editor.
+
+**Got out:** `cat -A` showed the file contained literal backspace bytes where `\b` should have
+been: the patch had gone through a shell heredoc, which ate the escape and wrote control
+characters into the source. Repaired by writing the file directly rather than through the shell,
+and a scan of every tracked source file confirmed nothing else was corrupted. The lesson is about
+tooling rather than payments, but it cost half an hour of staring at a correct-looking regex.
+
+**Broke:** A test that passed `None` to the model adapter crashed instead of returning `None`.
+
+**Got out:** The disabled check lived inside the transport layer, so every task method built its
+prompt — touching its arguments — before discovering there was no model to send it to. Each task
+now bails first. This matters more than it sounds: the promise that everything runs without an API
+key is only true if the no-model path never touches anything.
+
+**Honest finding, not a break:** on this batch the model reads customer replies no better than the
+regular expressions do — 93.9% against 93.0%. The replies are generated from templates, so the
+patterns have an unfair advantage; on real Hinglish the gap would look different. Reported as
+measured rather than assumed, which is the reason for scoring the reading at all.
+
+**Honest finding:** the model ignored the Hinglish instruction and wrote English messages with a
+Hindi sign-off. Adding a worked example of a real Hinglish message to the prompt was the fix.
+
+**Broke:** The model-advised policy and the deterministic one returned byte-identical results —
+same 234 recoveries, same rupees, differing only by ₹2 of API cost. A suspiciously perfect tie.
+
+**Got out:** The runner was handing the language model to *every* policy for reading customer
+replies, including the one whose entire purpose is to be the model-free baseline. Both policies
+were therefore reading replies with the model and planning almost identically, so the comparison
+measured nothing. The model is now scoped to the agent policy alone, for reading as well as for
+planning. Worth noting what this cost the headline number: once the agent had to act on what it
+*read* from replies rather than on what the customer actually meant, the deterministic policy's
+net recovery fell from ₹18.3L to ₹17.6L. That gap is the price of imperfect comprehension, and it
+belongs in the result rather than being hidden by a leak of ground truth.
+
+**What the model was actually worth.** With the boundary fixed, the model-advised policy recovered
+₹17,63,358 net against the deterministic policy's ₹17,23,840 — and the entire ₹39,518 difference
+is a single case. On case_0134 a customer replied *"paisa Friday ko bhej dunga"*. Both policies
+read it as a promise to pay; only the model resolved the date correctly. The pattern-matching
+policy worked out a date that had already passed, nudged again three days later, received
+*"bahut messages aa rahe hain, band karo"*, and closed the case as an opt-out — losing ₹39,522.
+The model-advised policy stayed quiet and the customer paid on the 11th.
+
+That is the honest size of the model's contribution here: not a sweeping improvement, one case out
+of five hundred, entirely explained by reading a date in Hinglish correctly. It is worth saying
+plainly, because the reverse table is also in the report — the deterministic planner beat the
+model-advised one on zero cases — and a result this narrow would be easy to overstate.
+
+Also measured and reported rather than smoothed over: 114 of the agent's 604 model calls failed
+outright under rate limiting, and the call budget ran out partway through the batch, so a large
+share of its messages came from templates. The run completed anyway, which is the property the
+budget exists to provide.

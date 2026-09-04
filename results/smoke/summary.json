@@ -1,0 +1,209 @@
+{
+  "meta": {
+    "n": 60,
+    "seed": 42,
+    "scale": 1.0,
+    "policies": [
+      "rules",
+      "agent"
+    ]
+  },
+  "policies": [
+    {
+      "policy": "rules",
+      "cases": 60,
+      "recovered": 34,
+      "recovered_by_agent": 28,
+      "recovered_organic": 4,
+      "recovered_via_human": 2,
+      "at_risk_paise": 45180625,
+      "recovered_paise": 34259273,
+      "strict_recovered_paise": 31389998,
+      "cost_paise": 101764,
+      "contacts": 94,
+      "retries": 38,
+      "escalations": 4,
+      "merchant_alerts": 3,
+      "opt_outs": 4,
+      "disputes": 2,
+      "violations": 0,
+      "violation_rules": {},
+      "false_nudges": 6,
+      "by_cause": {
+        "ABANDONED_CHECKOUT": {
+          "cases": 9,
+          "recovered": 1,
+          "at_risk_paise": 3397906,
+          "recovered_paise": 465922,
+          "recovery_rate": 0.111
+        },
+        "CUSTOMER_ABANDON": {
+          "cases": 4,
+          "recovered": 1,
+          "at_risk_paise": 369210,
+          "recovered_paise": 57477,
+          "recovery_rate": 0.25
+        },
+        "CUSTOMER_INPUT": {
+          "cases": 4,
+          "recovered": 1,
+          "at_risk_paise": 363168,
+          "recovered_paise": 131233,
+          "recovery_rate": 0.25
+        },
+        "INSTRUMENT_BLOCKED": {
+          "cases": 3,
+          "recovered": 1,
+          "at_risk_paise": 406364,
+          "recovered_paise": 346564,
+          "recovery_rate": 0.333
+        },
+        "INSUFFICIENT_FUNDS": {
+          "cases": 14,
+          "recovered": 10,
+          "at_risk_paise": 2030772,
+          "recovered_paise": 1391160,
+          "recovery_rate": 0.714
+        },
+        "LIMIT_EXCEEDED": {
+          "cases": 3,
+          "recovered": 2,
+          "at_risk_paise": 201512,
+          "recovered_paise": 150295,
+          "recovery_rate": 0.667
+        },
+        "MERCHANT_CONFIG": {
+          "cases": 3,
+          "recovered": 3,
+          "at_risk_paise": 183062,
+          "recovered_paise": 183062,
+          "recovery_rate": 1.0
+        },
+        "OVERDUE_RECEIVABLE": {
+          "cases": 12,
+          "recovered": 8,
+          "at_risk_paise": 36665015,
+          "recovered_paise": 30002468,
+          "recovery_rate": 0.667
+        },
+        "TRANSIENT_TECH": {
+          "cases": 5,
+          "recovered": 5,
+          "at_risk_paise": 1259185,
+          "recovered_paise": 1259185,
+          "recovery_rate": 1.0
+        },
+        "UNKNOWN": {
+          "cases": 3,
+          "recovered": 2,
+          "at_risk_paise": 304431,
+          "recovered_paise": 271907,
+          "recovery_rate": 0.667
+        }
+      },
+      "recovery_rate": 0.5667,
+      "net_paise": 34157509,
+      "strict_net_paise": 31288234,
+      "contacts_per_recovery": 2.76,
+      "median_hours_to_recovery": 26.0
+    },
+    {
+      "policy": "agent",
+      "cases": 60,
+      "recovered": 33,
+      "recovered_by_agent": 27,
+      "recovered_organic": 4,
+      "recovered_via_human": 2,
+      "at_risk_paise": 45180625,
+      "recovered_paise": 34209373,
+      "strict_recovered_paise": 31340098,
+      "cost_paise": 4838,
+      "contacts": 96,
+      "retries": 40,
+      "escalations": 5,
+      "merchant_alerts": 3,
+      "opt_outs": 4,
+      "disputes": 0,
+      "violations": 0,
+      "violation_rules": {},
+      "false_nudges": 6,
+      "by_cause": {
+        "ABANDONED_CHECKOUT": {
+          "cases": 9,
+          "recovered": 1,
+          "at_risk_paise": 3397906,
+          "recovered_paise": 465922,
+          "recovery_rate": 0.111
+        },
+        "CUSTOMER_ABANDON": {
+          "cases": 4,
+          "recovered": 1,
+          "at_risk_paise": 369210,
+          "recovered_paise": 57477,
+          "recovery_rate": 0.25
+        },
+        "CUSTOMER_INPUT": {
+          "cases": 4,
+          "recovered": 1,
+          "at_risk_paise": 363168,
+          "recovered_paise": 131233,
+          "recovery_rate": 0.25
+        },
+        "INSTRUMENT_BLOCKED": {
+          "cases": 3,
+          "recovered": 1,
+          "at_risk_paise": 406364,
+          "recovered_paise": 346564,
+          "recovery_rate": 0.333
+        },
+        "INSUFFICIENT_FUNDS": {
+          "cases": 14,
+          "recovered": 9,
+          "at_risk_paise": 2030772,
+          "recovered_paise": 1341260,
+          "recovery_rate": 0.643
+        },
+        "LIMIT_EXCEEDED": {
+          "cases": 3,
+          "recovered": 2,
+          "at_risk_paise": 201512,
+          "recovered_paise": 150295,
+          "recovery_rate": 0.667
+        },
+        "MERCHANT_CONFIG": {
+          "cases": 3,
+          "recovered": 3,
+          "at_risk_paise": 183062,
+          "recovered_paise": 183062,
+          "recovery_rate": 1.0
+        },
+        "OVERDUE_RECEIVABLE": {
+          "cases": 12,
+          "recovered": 8,
+          "at_risk_paise": 36665015,
+          "recovered_paise": 30002468,
+          "recovery_rate": 0.667
+        },
+        "TRANSIENT_TECH": {
+          "cases": 5,
+          "recovered": 5,
+          "at_risk_paise": 1259185,
+          "recovered_paise": 1259185,
+          "recovery_rate": 1.0
+        },
+        "UNKNOWN": {
+          "cases": 3,
+          "recovered": 2,
+          "at_risk_paise": 304431,
+          "recovered_paise": 271907,
+          "recovery_rate": 0.667
+        }
+      },
+      "recovery_rate": 0.55,
+      "net_paise": 34204535,
+      "strict_net_paise": 31335260,
+      "contacts_per_recovery": 2.91,
+      "median_hours_to_recovery": 26.1
+    }
+  ]
+}

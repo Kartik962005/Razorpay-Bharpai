@@ -197,6 +197,8 @@ class Case(BaseModel):
 
     language_pref: Language | None = None
     channel_pref: Channel | None = None
+    #: What the customer has written back, in order. Context for the planner and the brief.
+    reply_texts: list[str] = Field(default_factory=list)
 
     tags: list[str] = Field(default_factory=list)
 

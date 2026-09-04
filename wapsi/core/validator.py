@@ -5,15 +5,20 @@ it and the customer. This module is that gate: it does not improve messages, it 
 them. A refusal is not a failure mode — the template is used instead and the run continues.
 
 The banned list encodes the RBI fair practices code: no threats, no legal or credit-bureau
-claims, no impersonating a recovery agent.
+claims, no impersonating a recovery agent. The jargon rule exists because a model that is told
+the diagnosis will cheerfully print the internal label for it.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
 from wapsi.adapters.templates import MessageContext
+
+#: Internal identifiers: enum members, error codes, rule ids. A customer should never see one.
+JARGON = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
 
 
 @dataclass
@@ -50,6 +55,10 @@ def validate(text: str, ctx: MessageContext, policy: dict[str, Any]) -> Validati
         failures.append("missing payment link")
     if "opt_out_line" in required and "stop" not in lowered:
         failures.append("missing opt-out line")
+
+    leaked = JARGON.findall(text)
+    if leaked:
+        failures.append(f"internal label in customer text: {leaked[0]}")
 
     limit = rules["max_chars"].get(ctx.channel.value)
     if limit and len(text) > limit:

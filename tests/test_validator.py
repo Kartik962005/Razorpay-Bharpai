@@ -105,3 +105,22 @@ def test_hinglish_template_reads_like_a_real_message(policy):
     assert "STOP" in text
     assert "Chai Point" in text
     assert "1,299" in text
+
+
+def test_internal_labels_never_reach_a_customer(policy):
+    """A model that is told the diagnosis will happily print the enum name. Caught here."""
+
+    ctx = context()
+    text = (
+        f"Hi Aarav, Chai Point payment of ₹1,299 failed due to INSTRUMENT_BLOCKED. "
+        f"Pay now: {LINK} Reply STOP to opt out."
+    )
+    result = validate(text, ctx, policy)
+    assert not result.ok
+    assert any("internal label" in f for f in result.failures)
+
+
+def test_ordinary_capitals_are_not_mistaken_for_jargon(policy):
+    ctx = context()
+    text = f"Hi Aarav, your Chai Point payment of ₹1,299 failed. Try UPI: {LINK} Reply STOP to opt out."
+    assert validate(text, ctx, policy).ok

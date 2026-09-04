@@ -22,7 +22,8 @@ from wapsi.adapters.razorpay_fake import FakeGateway
 from wapsi.core.audit import AuditLog
 from wapsi.core.executor import Executor
 from wapsi.core.models import Action, ActionType, Case, CaseStatus, Outcome, ReplyIntent, RootCause
-from wapsi.core.planner import RulesPlanner
+from wapsi.core.planner import AgentPlanner, RulesPlanner
+from wapsi.core.replies import interpret
 from wapsi.core.policy import PolicyContext, PolicyEngine
 from wapsi.core.taxonomy import diagnose
 from wapsi.core.timing import is_salary_window
@@ -70,6 +71,8 @@ class Runner:
         policy: PolicyEngine,
         composer: Composer | None = None,
         results_dir: Path | None = None,
+        llm: Any | None = None,
+        advisor_sample: float = 1.0,
     ):
         self.world = world
         self.base_cases = cases
@@ -77,6 +80,8 @@ class Runner:
         self.policy = policy
         self.composer = composer
         self.results_dir = results_dir
+        self.llm = llm
+        self.advisor_sample = advisor_sample
 
     def run(self, policy_name: str, planner: Any | None = None) -> RunResult:
         started = time.perf_counter()
@@ -100,7 +105,15 @@ class Runner:
         queue = HumanQueue()
         customers = CustomerModel(self.population, self.world)
         gateway = FakeGateway(customers)
-        composer = self.composer or TemplateComposer(self.policy.policy)
+        uses_model = policy_name == "agent" and self.llm is not None
+        composer = self.composer
+        if composer is None:
+            if uses_model:
+                from wapsi.adapters.composer import LLMComposer
+
+                composer = LLMComposer(self.policy.policy, self.llm)
+            else:
+                composer = TemplateComposer(self.policy.policy)
         executor = Executor(
             gateway=gateway,
             messenger=messenger,
@@ -108,9 +121,18 @@ class Runner:
             policy=self.policy,
             audit=audit,
             composer=composer,
+            llm=self.llm if uses_model else None,
         )
         if planner is None:
-            planner = PLANNERS[policy_name](self.policy)
+            if policy_name == "agent":
+                planner = AgentPlanner(self.policy, self.llm, sample=self.advisor_sample)
+            else:
+                planner = PLANNERS[policy_name](self.policy)
+
+        # How well the model reads customer replies is measured, not assumed.
+        reply_stats = {"read": 0, "correct": 0, "by_model": 0, "hard_stops": 0, "hard_stops_caught": 0}
+        # Only the agent policy gets the model, for reading replies as well as for planning.
+        reader = self.llm if uses_model else None
 
         queue_: list[tuple[datetime, int, str, str, Any]] = []
         counter = 0
@@ -163,7 +185,9 @@ class Runner:
                 self._organic_payment(case, when, audit)
                 continue
             if kind == "reaction":
-                self._apply_reaction(case, when, payload, audit, push, executor)
+                self._apply_reaction(
+                    case, when, payload, audit, push, executor, reply_stats, reader
+                )
                 continue
             if kind == "promise":
                 self._resolve_promise(case, when, customers, audit, push)
@@ -210,6 +234,24 @@ class Runner:
                 continue
 
             waits[case.id] = 0
+            if decision.proposal is not None:
+                audit.record(
+                    ts=when,
+                    case_id=case.id,
+                    kind="proposal",
+                    actor="llm",
+                    summary=str(decision.proposal.get("reason", ""))[:200],
+                    payload={"proposal": decision.proposal},
+                )
+                audit.record(
+                    ts=when,
+                    case_id=case.id,
+                    kind="verdict",
+                    actor="policy",
+                    summary=decision.verdict or "",
+                    rule_ids=["R34"] if decision.verdict and "denied" in decision.verdict else [],
+                    payload={"accepted": decision.verdict == "allowed"},
+                )
             result = executor.execute(
                 action,
                 case,
@@ -267,7 +309,7 @@ class Runner:
             seed=self.world.seed,
             wall_seconds=time.perf_counter() - started,
             events_processed=events,
-            llm_stats=getattr(composer, "stats", lambda: {})(),
+            llm_stats={**getattr(composer, "stats", lambda: {})(), "replies": reply_stats},
         )
 
     # -- world events -------------------------------------------------------------------------
@@ -307,7 +349,15 @@ class Runner:
         )
 
     def _apply_reaction(
-        self, case: Case, now: datetime, reaction: Reaction, audit: AuditLog, push, executor
+        self,
+        case: Case,
+        now: datetime,
+        reaction: Reaction,
+        audit: AuditLog,
+        push,
+        executor,
+        reply_stats: dict[str, int],
+        reader: Any | None,
     ) -> None:
         if reaction.paid and not case.paid:
             case.paid = True
@@ -327,16 +377,42 @@ class Runner:
             )
             return
 
-        if reaction.reply_intent is not None:
+        if reaction.reply_intent is not None and reaction.reply_text:
+            # The agent only ever sees the text. What the customer meant is the world's
+            # business, and is used solely to score the reading afterwards.
+            case.reply_texts.append(reaction.reply_text)
+            read, promise_at, confidence, by_model = interpret(reaction.reply_text, now, reader)
+            reply_stats["read"] += 1
+            reply_stats["by_model"] += int(by_model)
+            reply_stats["correct"] += int(read is reaction.reply_intent)
+            if reaction.reply_intent in (ReplyIntent.opt_out, ReplyIntent.dispute):
+                reply_stats["hard_stops"] += 1
+                reply_stats["hard_stops_caught"] += int(read is reaction.reply_intent)
+
             audit.record(
                 ts=now,
                 case_id=case.id,
                 kind="reply",
                 actor="customer",
-                summary=f"reply understood as {reaction.reply_intent.value}: {reaction.reply_text!r}",
-                payload={"intent": reaction.reply_intent.value, "text": reaction.reply_text},
+                summary=f"read as {read.value} ({confidence:.0%} confident): {reaction.reply_text!r}",
+                payload={
+                    "text": reaction.reply_text,
+                    "read_as": read.value,
+                    "actual": reaction.reply_intent.value,
+                    "by_model": by_model,
+                },
             )
 
+            if read is ReplyIntent.opt_out:
+                case.opted_out = True
+            elif read is ReplyIntent.dispute:
+                executor.mark_disputed(case, now, "the customer disputed the charge")
+            elif read is ReplyIntent.complaint:
+                case.complaint = True
+            elif read is ReplyIntent.promise_to_pay and promise_at is not None:
+                case.promise_at = promise_at
+
+        # What the customer actually does happens regardless of how well we read them.
         if reaction.opted_out:
             case.opted_out = True
         if reaction.disputed:
@@ -344,7 +420,6 @@ class Runner:
         if reaction.complained:
             case.complaint = True
         if reaction.promise_at is not None:
-            case.promise_at = reaction.promise_at
             push(reaction.promise_at, "promise", case.id)
             return
 

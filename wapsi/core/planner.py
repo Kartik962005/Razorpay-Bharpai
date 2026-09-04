@@ -11,6 +11,7 @@ action, override a denial, or reach a customer the rules protect.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -45,6 +46,10 @@ class Decision:
     action: Action
     rule_ids: list[str]
     rationale: str
+    #: What the model proposed and what the policy engine did with it. Present only in agent
+    #: mode, and written to the audit log so a reviewer can see the override, not just its result.
+    proposal: dict | None = None
+    verdict: str | None = None
 
 
 class RulesPlanner:
@@ -205,3 +210,94 @@ def _rule_text(rule_id: str) -> str:
     from wapsi.core.policy import RULE_TEXT
 
     return RULE_TEXT.get(rule_id, rule_id)
+
+
+class AgentPlanner(RulesPlanner):
+    """The rules planner with a language model advising it, and no extra authority.
+
+    The model sees the actions the policy engine has already approved, with the engine's own
+    expected values, and the ones it refused with reasons. It may reorder that list and choose the
+    channel, tone and language. It cannot add an action, revive a refused one, or move a deadline.
+    Every override is re-checked against the engine before it is executed, and a proposal that
+    fails twice on one case escalates it to a human under R34.
+
+    Whether this beats the deterministic planner is a question the batch answers rather than
+    assumes: both run over the identical cases, and the report shows where each one lost.
+    """
+
+    name = "agent"
+
+    def __init__(self, policy: PolicyEngine, llm, sample: float = 1.0):
+        super().__init__(policy)
+        self.llm = llm
+        self.sample = sample
+
+    def _in_sample(self, case: Case) -> bool:
+        """Deterministic per-case sampling, so a partial advisor run is still reproducible."""
+
+        if self.sample >= 1.0:
+            return True
+        digest = hashlib.sha256(case.id.encode()).digest()
+        return (int.from_bytes(digest[:4], "big") % 1000) < self.sample * 1000
+
+    def plan(self, case: Case, now: datetime, ctx: PolicyContext) -> Decision:
+        decision = super().plan(case, now, ctx)
+
+        if not getattr(self.llm, "enabled", False) or not self._in_sample(case):
+            return decision
+        # Closing, escalating and alerting are policy conclusions, not choices to be advised on.
+        if decision.action.type in (
+            ActionType.CLOSE,
+            ActionType.ESCALATE_HUMAN,
+            ActionType.ALERT_MERCHANT,
+            ActionType.WAIT,
+        ):
+            return decision
+
+        allowed, denied = self.policy.allowed(case, now, ctx)
+        if len(allowed) < 2:
+            # With one legal move there is nothing to advise on, and a call would be wasted.
+            return decision
+
+        allowed_lines = [
+            f"- {a.type.value} (expected ₹{self._score(case, a, now, now) / 100:,.0f}, "
+            f"cost ₹{a.cost_paise / 100:.2f})"
+            for a in allowed
+        ]
+        denied_lines = [f"- {d.action.value}: {d.reason} [{d.rule_id}]" for d in denied]
+        proposal = self.llm.advise_action(case, allowed_lines, denied_lines, case.reply_texts)
+        if not proposal:
+            return decision
+
+        chosen = str(proposal.get("action", "")).strip().upper()
+        match = next((a for a in allowed if a.type.value == chosen), None)
+        if match is None:
+            case.llm_denials += 1
+            decision.proposal = proposal
+            decision.verdict = f"denied: {chosen or 'unnamed'} is not an approved action"
+            return decision
+
+        action = match.model_copy(deep=True)
+        for field_name in ("channel", "tone", "language"):
+            value = proposal.get(field_name)
+            if value and field_name in action.params:
+                action.params[field_name] = str(value)
+        action.cost_paise = self.policy.cost_of(action)
+
+        breaches = self.policy.check_all(action, case, now, ctx)
+        if breaches:
+            case.llm_denials += 1
+            decision.proposal = proposal
+            decision.verdict = f"denied: {breaches[0].rule_id} — {breaches[0].reason}"
+            return decision
+
+        action.scheduled_at = now
+        action.expected_value_paise = self._score(case, action, now, now)
+        reason = str(proposal.get("reason", "")).strip()
+        return Decision(
+            action,
+            [],
+            f"advised: {reason}" if reason else "advised by the planner model",
+            proposal=proposal,
+            verdict="allowed",
+        )

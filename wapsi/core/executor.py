@@ -62,6 +62,7 @@ class Executor:
         policy: PolicyEngine,
         audit: AuditLog,
         composer: Composer,
+        llm: Any | None = None,
     ):
         self.gateway = gateway
         self.messenger = messenger
@@ -69,6 +70,7 @@ class Executor:
         self.policy = policy
         self.audit = audit
         self.composer = composer
+        self.llm = llm
 
     def execute(
         self,
@@ -277,13 +279,17 @@ class Executor:
         )
 
     def _escalate(self, action, case: Case, now, result: ExecutionResult, rule_ids) -> None:
-        brief = action.params.get("brief") or escalation_brief(
-            case.merchant_name,
-            case.amount_inr,
-            case.root_cause or RootCause.UNKNOWN,
-            case.actions,
-            rule_ids,
-        )
+        brief = action.params.get("brief")
+        if not brief and self.llm is not None and getattr(self.llm, "enabled", False):
+            brief = self.llm.write_brief(case, rule_ids, case.reply_texts)
+        if not brief:
+            brief = escalation_brief(
+                case.merchant_name,
+                case.amount_inr,
+                case.root_cause or RootCause.UNKNOWN,
+                case.actions,
+                rule_ids,
+            )
         kind = "risk_review" if case.root_cause is RootCause.RISK_DECLINE else "escalation"
         ticket = self.queue.create(case, now, kind=kind, brief=brief, rule_ids=rule_ids)
         case.status = CaseStatus.escalated
