@@ -1,5 +1,7 @@
 # Wapsi
 
+[![tests](https://github.com/Kartik962005/Razorpay-Wapsi-/actions/workflows/tests.yml/badge.svg)](https://github.com/Kartik962005/Razorpay-Wapsi-/actions/workflows/tests.yml)
+
 **Cause-aware revenue recovery for Razorpay merchants.** Razorpay AI Buildathon — Track 3.
 
 *wapsi (वापसी): return, comeback.*
