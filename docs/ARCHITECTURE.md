@@ -129,12 +129,26 @@ from a permanent bar and abandons recoverable cases. See `docs/BUILD_LOG.md`.
 ## Persistence
 
 The simulation keeps everything in memory and writes JSONL audit logs per policy. Live mode writes
-`.live/cases.json`, `.live/cursor.json` and `.live/audit.jsonl` — files a person can open and read,
-which is worth more than a schema for something whose purpose is to be inspected.
+`.live/cases.json`, `.live/messages.jsonl`, `.live/cursor.json` and `.live/audit.jsonl` — files a
+person can open and read, which is worth more than a schema for something whose purpose is to be
+inspected.
+
+Two decisions here were bought with bugs, and both are worth stating.
+
+**What persists is a policy question, not a storage question.** The per-customer weekly messaging
+cap is derived from what has been sent. Holding that in memory meant a restart silently re-opened
+the budget and the same person could be messaged again — a rule broken by an implementation detail
+rather than by a decision. Anything a rule is computed from has to outlive the process.
+
+**Paths resolve from one directory at call time.** They used to be module constants computed at
+import, so a test could isolate some files and miss others — and adding a new file later escaped
+the isolation entirely, which happened twice. Redirecting `STATE_DIR` now redirects everything,
+including files that do not exist yet. A defence that must be updated whenever the code grows is
+not a defence.
 
 ## Testing
 
-160 tests, no network required.
+192 tests, no network required.
 
 | area | what is pinned |
 |---|---|
@@ -147,4 +161,6 @@ which is worth more than a schema for something whose purpose is to be inspected
 | `test_llm_fallback` | no key, dead model, rogue model — vetoes, and hard stops the model cannot override |
 | `test_sim` | reproducibility, mix, hidden-state isolation, zero violations for the agent |
 | `test_webhook` | signature, tampering, deduplication, both URL paths |
-| `test_live` | real payment shapes, SDK spelling quirks, honest reporting of what test mode cannot do |
+| `test_live` | real payment shapes, SDK spelling quirks, pagination, honest reporting of what test mode cannot do |
+| `test_baselines` | the platform baseline is fair, and the agent still wins under hostile assumptions |
+| `test_cli` | every command runs — added after a rename left a dead reference the unit tests could not see |

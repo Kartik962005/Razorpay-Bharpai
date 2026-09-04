@@ -136,7 +136,7 @@ the time is the design, not an accident.
 - hostile assumptions (penalties stripped, chargebacks free): Wapsi ₹20.1L, naive ₹18.0L,
   defaults ₹15.4L — ranking unchanged
 - 51 false nudges, counted against ourselves
-- 169 tests, no network; CI on Linux and Windows, no keys
+- 192 tests, no network; CI on Linux and Windows, no keys
 
 ### "What's the worst bug you shipped and caught?"
 
