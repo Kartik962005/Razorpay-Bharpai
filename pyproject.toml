@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wapsi"
+version = "0.1.0"
+description = "Cause-aware, bounded revenue recovery for Razorpay merchants"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "python-dotenv>=1.0",
+    "PyYAML>=6.0",
+    "typer>=0.12",
+    "rich>=13.7",
+    "razorpay>=1.4",
+    "openai>=1.30",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "sqlmodel>=0.0.16",
+    "httpx>=0.27",
+    "jinja2>=3.1",
+    "tzdata>=2024.1; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+wapsi = "wapsi.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["wapsi*"]
+
+[tool.setuptools.package-data]
+wapsi = ["sim/*.yaml", "api/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

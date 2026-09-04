@@ -54,3 +54,28 @@ secret at start-up, so the very next delivery still failed even though the file 
 restarting it fixed that. Re-fired `payment_link.cancelled` → `signature_ok: true`. Lessons kept:
 `wapsi live doctor` prints a short fingerprint of the loaded webhook secret (never the value) so
 a stale process is obvious, and the app logs the fingerprint it loaded on boot.
+
+## 2026-09-04 — session 1: diagnosis, policy engine, guardrails
+
+**Broke:** The first test run never reached a test. `ZoneInfo("Asia/Kolkata")` raised
+`ZoneInfoNotFoundError` at import time: Windows ships no IANA timezone database, and every rule in
+this system is a statement about Indian local time.
+
+**Got out:** Added `tzdata` as a platform-conditional dependency *and* a fixed-offset fallback in
+`config.py`. India has observed a constant UTC+05:30 since 1945, so the fallback is exact rather
+than an approximation, and the package now runs on a machine with no timezone data at all.
+
+**Broke:** A test asserted that a ₹18,000 mandate failure would be denied a retry under R14, and
+it failed — no R14 in the denials.
+
+**Got out:** The test was wrong and the code was right, which is the good version of this. A
+`MANDATE_ISSUE` never proposes `RETRY_CHARGE` in the first place, so the AFA rule had nothing to
+deny. R14 earns its keep on a *different* case: a large subscription failing for
+`insufficient_funds`, where a retry looks perfectly reasonable and is still illegal above ₹15,000.
+The test now exercises that instead, which is also the case a real merchant would get wrong.
+
+**Broke:** Printing a diagnosis to the Windows console raised `UnicodeEncodeError` on the ₹ sign
+(cp1252). Harmless in tests, fatal for a CLI whose entire output is rupee amounts.
+
+**Got out:** Noted for the CLI: reconfigure stdout to UTF-8 on start-up rather than avoiding the
+symbol. A recovery tool that cannot print ₹ is not finished.

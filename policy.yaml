@@ -1,0 +1,92 @@
+# Every bound Wapsi operates under, in one file.
+#
+# Each rule has an id (R01..R41). The engine cites those ids on every allow/deny, the audit log
+# stores them, the tests assert on them, and the README renders this file. Change a number here
+# and the whole system changes with it: nothing below is duplicated in code.
+
+timezone: Asia/Kolkata
+
+windows:
+  # TRAI TCCCPR: promotional and service-explicit messages are delivered in a daytime band only.
+  customer_messaging:            # R10
+    start: "10:00"
+    end: "21:00"
+  # RBI Fair Practices Code caps recovery contact at 19:00; intersected with the TRAI band.
+  receivables_messaging:         # R11
+    start: "10:00"
+    end: "19:00"
+  # NPCI 2026 execution windows for UPI AutoPay: avoid the 10:00-13:00 and 17:00-21:30 peaks.
+  auto_debit:                    # R12
+    - ["00:00", "10:00"]
+    - ["13:00", "17:00"]
+    - ["21:30", "24:00"]
+  # RBI e-mandate framework: the customer must be told at least this long before a debit.
+  predebit_notice_hours: 24      # R13
+
+# RBI additional-factor-authentication threshold for recurring payments. Above this we never
+# auto-retry; we ask the customer to re-authenticate.
+afa_threshold_paise: 1500000     # R14
+
+# Bank/PSP outages resolve on their own. Retry once the outage clears, not on a fixed clock.
+transient_retry:                 # R16
+  min_gap_minutes: 30
+  max_per_24h: 3
+  wait_for_downtime_resolved: true
+
+caps:
+  nudges_per_case: 3             # R20
+  nudge_gap_hours: 24            # R20
+  first_abandon_nudge_delay_minutes: 30
+  actions_per_case: 5            # R21
+  max_age_days:                  # R22
+    payment_failed: 14
+    checkout_abandoned: 14
+    subscription_failed: 14
+    overdue_receivable: 30
+  customer_messages_per_7d: 5    # R23
+
+economics:                       # R24
+  min_amount_for_nudge_paise: 5000
+  channel_cost_paise:
+    sms: 20
+    whatsapp: 80
+    email: 2
+    voice_stub: 300
+  retry_cost_paise: 5
+  human_escalation_cost_paise: 5000
+
+escalation:
+  high_value_paise: 2500000      # R30  with at least two failed nudges
+  high_value_min_nudges: 2       # R30
+  promises_broken: 2             # R31
+  on_complaint: true             # R32
+  unknown_after_failed_retries: 1  # R33
+  llm_denials: 2                 # R34
+
+promise_grace_days: 1            # R41
+
+validator:                       # R40
+  banned_patterns:
+    - "legal action"
+    - "police"
+    - "court"
+    - "fir "
+    - "credit score"
+    - "cibil"
+    - "blacklist"
+    - "last warning"
+    - "or else"
+    - "consequences"
+    - "fraud"
+    - "seize"
+    - "recovery agent"
+  required:
+    - merchant_name
+    - amount
+    - link
+    - opt_out_line
+  max_chars:
+    sms: 320
+    whatsapp: 600
+    email: 2000
+    voice_stub: 600
