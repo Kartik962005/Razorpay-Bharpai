@@ -47,17 +47,25 @@ def doctor() -> None:
     table.add_column("check")
     table.add_column("result")
 
-    table.add_row("razorpay key id", settings.razorpay_key_id[:14] + "…" or "[red]unset[/red]")
+    table.add_row(
+        "razorpay key id",
+        (settings.razorpay_key_id[:14] + "…") if settings.razorpay_key_id else "[red]unset[/red]",
+    )
     table.add_row("razorpay secret", "set" if settings.razorpay_key_secret else "[red]unset[/red]")
     table.add_row("webhook secret", fingerprint(settings.razorpay_webhook_secret))
 
-    try:
-        client = _client()
-        payments = client.payment.all({"count": 1})
-        table.add_row("razorpay auth", f"[green]ok[/green] ({payments.get('count', 0)} payments visible)")
-    except Exception as exc:  # noqa: BLE001
-        table.add_row("razorpay auth", f"[red]failed[/red] {exc}")
-        client = None
+    client = None
+    if not settings.razorpay_configured:
+        table.add_row("razorpay auth", "[yellow]no keys — copy .env.example to .env[/yellow]")
+    else:
+        try:
+            client = _client()
+            payments = client.payment.all({"count": 1})
+            table.add_row(
+                "razorpay auth", f"[green]ok[/green] ({payments.get('count', 0)} payments visible)"
+            )
+        except Exception as exc:  # noqa: BLE001
+            table.add_row("razorpay auth", f"[red]failed[/red] {type(exc).__name__}: {exc}")
 
     if client is not None:
         try:

@@ -268,3 +268,22 @@ verification. The recovery half of the loop happens when that window opens.
 That refusal is the demonstration. An agent that sends a payment link at 23:25 because the
 expected value looks good is the thing this project exists to argue against, and the log shows it
 declining to do so on live data with the rule and the deferred time recorded.
+
+## 2026-09-04 — session 5: documentation, and proving the keyless claim
+
+**Checked rather than assumed:** the README claims the whole system runs with no API keys. Hiding
+`.env` and re-running proved it — 160 tests pass, `wapsi simulate` produces the full comparison
+table, and `wapsi live doctor` degrades to a readable "no keys" report instead of failing. That
+claim is the reason a judge can reproduce the numbers, so it needed to be tested rather than
+believed.
+
+**Broke, mildly:** with no keys, `live doctor` reported `razorpay auth: failed 1` — an exception
+string with no information in it, from attempting an API call that could not possibly work.
+
+**Got out:** it now checks whether keys are configured before trying, and prints the exception
+type alongside its message when a call genuinely fails. A diagnostic tool whose failure output is
+the single character `1` is worse than no diagnostic tool.
+
+**Cleanup:** `scripts/check_keys.py` and `scripts/webhook_probe.py` were scaffolding written before
+the package existed; `wapsi live doctor` and `wapsi serve` do both jobs properly now, so they are
+gone. What remains in `scripts/` is documented.
