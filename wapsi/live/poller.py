@@ -105,6 +105,8 @@ class LivePoller:
         self.gateway = LiveGateway(client)
         self.audit = audit or AuditLog()
         self.messenger = Messenger(policy.economics["channel_cost_paise"])
+        # The weekly per-customer cap is derived from this, so it has to outlive the process.
+        self.messenger.sent.extend(state.load_messages())
         self.queue = HumanQueue()
         composer = (
             LLMComposer(policy.policy, llm)
@@ -137,7 +139,9 @@ class LivePoller:
         discovered: list[Case] = []
         since = self.last_poll or (now - FIRST_LOOK_BACK)
 
-        for payment in self.gateway.failed_payments_since(since):
+        failed = self.gateway.failed_payments_since(since)
+        self.fetch_complete = getattr(self.gateway, "last_fetch_complete", True)
+        for payment in failed:
             if payment["id"] in self.seen_payments:
                 continue
             self.seen_payments.add(payment["id"])
@@ -305,9 +309,15 @@ class LivePoller:
             else:
                 lines.append(f"{case.id}: {decision.action.type.value}")
 
-        self.last_poll = now
+        # Only move the cursor forward if the whole window was read. Advancing past a
+        # truncated listing would lose those cases permanently, and silently.
+        if getattr(self, "fetch_complete", True):
+            self.last_poll = now
+        else:
+            lines.append("listing was truncated; holding the cursor and re-reading next poll")
         state.save_cases(self.cases)
-        state.save_cursor(sorted(self.seen_payments), now)
+        state.save_cursor(sorted(self.seen_payments), self.last_poll or now)
+        state.save_messages(self.messenger.sent)
         return lines
 
     def close_paid(self, now: datetime) -> list[str]:
@@ -336,4 +346,5 @@ class LivePoller:
                 lines.append(f"{case.id}: RECOVERED ₹{case.amount_inr:,.0f}")
         if lines:
             state.save_cases(self.cases)
+            state.save_messages(self.messenger.sent)
         return lines

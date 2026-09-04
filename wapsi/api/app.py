@@ -45,7 +45,7 @@ def _open_case_from_webhook(payload: dict[str, Any]) -> str | None:
     cases[case.id] = case
     state.save_cases(cases)
 
-    audit = AuditLog(RESULTS_DIR.parent / ".live" / "audit.jsonl", truncate=False)
+    audit = AuditLog(state.audit_path(), truncate=False)
     audit.record(
         ts=case.created_at,
         case_id=case.id,
@@ -144,7 +144,7 @@ def create_app() -> FastAPI:
         """One case's audit timeline, from live state or a batch audit log."""
 
         entries = []
-        live_log = RESULTS_DIR.parent / ".live" / "audit.jsonl"
+        live_log = state.audit_path()
         for path in (live_log, RESULTS_DIR / f"audit_{policy}.jsonl"):
             if path.exists():
                 entries = [e for e in AuditLog.read(path) if e.case_id == case_id]

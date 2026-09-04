@@ -107,9 +107,8 @@ def isolated_state(tmp_path, monkeypatch):
     from wapsi.api import app as app_module
     from wapsi.live import state as live_state
 
+    # One line, because every state path is resolved from STATE_DIR at call time. Patching paths
+    # individually is what let a new file escape isolation twice.
     monkeypatch.setattr(live_state, "STATE_DIR", tmp_path)
-    monkeypatch.setattr(live_state, "SEED_PATH", tmp_path / "seed.json")
-    monkeypatch.setattr(live_state, "CASES_PATH", tmp_path / "cases.json")
-    monkeypatch.setattr(live_state, "CURSOR_PATH", tmp_path / "cursor.json")
     monkeypatch.setattr(app_module, "RESULTS_DIR", tmp_path / "results")
     return tmp_path

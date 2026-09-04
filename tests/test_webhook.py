@@ -218,3 +218,35 @@ def test_an_appending_audit_log_keeps_what_was_already_there(tmp_path):
     entries = AuditLog.read(path)
     assert [e.summary for e in entries] == ["one", "two"]
     assert [e.seq for e in entries] == [1, 2]
+
+
+def test_the_weekly_message_cap_survives_a_restart(isolated_state):
+    """R23 is derived from what has been sent. Holding that only in memory means a restart
+    silently re-opens the budget and the same person is messaged again."""
+
+    from datetime import datetime, timedelta
+
+    from wapsi.config import IST
+    from wapsi.core.models import Channel, Language, Message, Tone
+    from wapsi.live import state
+
+    now = datetime.now(IST)
+    sent = [
+        Message(
+            case_id=f"c{i}",
+            channel=Channel.sms,
+            to="+919999900001",
+            text="hi",
+            language=Language.en,
+            tone=Tone.soft,
+            sent_at=now - timedelta(days=i),
+            cost_paise=20,
+        )
+        for i in range(1, 6)
+    ]
+    state.save_messages(sent)
+
+    restored = state.load_messages()
+    assert len(restored) == 5
+    assert restored[0].to == "+919999900001"
+    assert restored[0].sent_at.tzinfo is not None, "timestamps must survive the round trip"

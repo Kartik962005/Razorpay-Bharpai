@@ -368,3 +368,45 @@ five named steps — plan-and-act, wait, record-proposal, await-customer, await-
 whole batch and confirmed every policy's recovered count, net rupees and violation count are
 byte-identical to before, which is the only acceptable outcome for a refactor of something that
 produces the headline numbers.
+
+## 2026-09-05 — hunting the rest of that bug's family
+
+The order-id bug had a shape worth generalising: **state the live path depends on that the
+simulation cannot vouch for.** Went looking for siblings and found three, plus one I created while
+fixing them.
+
+**Broke:** The per-customer weekly messaging cap (R23) reset on every restart. It is derived from
+what the messenger has sent, and the messenger was rebuilt empty each time `wapsi live watch`
+started. Cases persisted; messages did not. So a customer who had received their five messages
+became contactable again purely because a process restarted.
+
+**Got out:** Sent messages are persisted and reloaded. Demonstrated the failure first — the same
+customer, the same engine, allowed in one context and refused in the other, with the only
+difference being whether the history was in memory.
+
+**Broke:** The failed-payment listing read one page and stopped. The caller then advanced its
+cursor past the entire window, so anything after the first fifty was never seen again — not
+retried, not logged, not counted. Silent data loss, on the ingestion path, at any real volume.
+
+**Got out:** The listing pages through to the end and reports whether it got there. If it did not,
+the poller holds the cursor and re-reads next time rather than stepping over cases it never saw.
+Three tests, one of which builds a 250-payment account to prove the pages are followed.
+
+**Broke, and this is the one worth telling:** while fixing the message persistence I added a new
+state file — and it landed in the *real* `.live/` directory during a test run, because the
+isolation fixture I had written an hour earlier patched each path individually and I had not
+added the new one. The exact bug I had just fixed, recurring within the hour, in the fix for it.
+
+**Got out:** Stopped patching paths and removed the possibility instead. Every state file is now
+resolved from one directory at call time, so redirecting that directory redirects everything,
+including files that do not exist yet. The fixture is one line. A defence that has to be updated
+whenever the code grows is not a defence.
+
+**Broke:** A rename left a dead constant on the exit path of `wapsi live watch`. All 177 tests
+passed; the command would have crashed the moment anyone ran it, because nothing in the suite ever
+invoked the CLI.
+
+**Got out:** Added smoke tests that run every command, plus a real 40-case batch through the CLI
+itself. 192 tests now. Re-ran the full batch afterwards and confirmed every policy's recovered
+count and net rupees are identical to the committed run — a session of bug fixes that moves a
+headline number is a session that introduced something.

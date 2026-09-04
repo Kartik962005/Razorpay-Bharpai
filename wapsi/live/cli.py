@@ -9,7 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from wapsi.config import IST, REPO_ROOT, fingerprint, get_settings
+from wapsi.config import IST, fingerprint, get_settings
 from wapsi.core.audit import AuditLog
 from wapsi.core.policy import PolicyEngine
 from wapsi.live import state
@@ -19,7 +19,9 @@ from wapsi.live.seed import next_steps, seed as seed_account
 live = typer.Typer(help="Run the agent against a Razorpay test account.")
 console = Console()
 
-AUDIT_PATH = REPO_ROOT / ".live" / "audit.jsonl"
+# Resolved through the state module so tests and alternate state dirs are honoured.
+def _audit_path():
+    return state.audit_path()
 
 
 def _client():
@@ -157,7 +159,7 @@ def watch(
         model = LLM()
 
     # Append: the webhook endpoint may already have written cases into this log.
-    audit = AuditLog(AUDIT_PATH, truncate=False)
+    audit = AuditLog(_audit_path(), truncate=False)
     poller = LivePoller(client, PolicyEngine.load(), llm=model, audit=audit)
 
     console.print(
@@ -183,7 +185,7 @@ def watch(
             break
         time.sleep(poll)
 
-    console.print(f"\n[dim]{len(poller.cases)} case(s) tracked · audit at {AUDIT_PATH}[/dim]")
+    console.print(f"\n[dim]{len(poller.cases)} case(s) tracked · audit at {_audit_path()}[/dim]")
 
 
 @live.command()
@@ -191,7 +193,8 @@ def reset() -> None:
     """Forget locally tracked live cases. Nothing in the Razorpay account is touched."""
 
     removed = []
-    for path in (state.CASES_PATH, state.CURSOR_PATH, AUDIT_PATH):
+    for path in (state.path(state.CASES_FILE), state.path(state.CURSOR_FILE),
+                 state.path(state.MESSAGES_FILE), _audit_path()):
         if path.exists():
             path.unlink()
             removed.append(path.name)

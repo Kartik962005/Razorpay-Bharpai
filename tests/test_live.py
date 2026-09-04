@@ -241,3 +241,57 @@ def test_the_recovery_link_is_still_checked_before_the_order():
     case = case_from_payment(FAILED_PAYMENT)
     case.razorpay["recovery_link_id"] = "plink_recovery"
     assert gateway.refresh(case, datetime.now(IST))["entity"] == "plink_recovery"
+
+
+def test_the_listing_follows_pagination_to_the_end():
+    """One page would be silent data loss: the caller advances its cursor past the whole window,
+    so anything beyond the first page would never be seen again."""
+
+    class Paged(StubResource):
+        def __init__(self, total):
+            super().__init__({})
+            self.total = total
+            self.requests = []
+
+        def all(self, data=None):
+            data = data or {}
+            skip, count = data.get("skip", 0), data.get("count", 100)
+            self.requests.append((skip, count))
+            items = [
+                {**FAILED_PAYMENT, "id": f"pay_{i:04d}"} for i in range(self.total)
+            ][skip : skip + count]
+            return {"items": items}
+
+    client = StubClient()
+    client.payment = Paged(total=250)
+    gateway = LiveGateway(client)
+
+    found = gateway.failed_payments_since(datetime.now(IST) - timedelta(hours=6), count=100)
+    assert len(found) == 250, "every failed payment must be returned, not just the first page"
+    assert gateway.last_fetch_complete is True
+    assert [r[0] for r in client.payment.requests] == [0, 100, 200]
+
+
+def test_a_truncated_listing_is_reported_so_the_cursor_can_be_held():
+    class AlwaysFull(StubResource):
+        def all(self, data=None):
+            count = (data or {}).get("count", 100)
+            return {"items": [{**FAILED_PAYMENT, "id": f"pay_x{i}"} for i in range(count)]}
+
+    client = StubClient()
+    client.payment = AlwaysFull({})
+    gateway = LiveGateway(client)
+    gateway.failed_payments_since(datetime.now(IST), count=10, max_pages=3)
+    assert gateway.last_fetch_complete is False
+
+
+def test_a_failed_listing_does_not_claim_completeness():
+    class Broken(StubResource):
+        def all(self, data=None):
+            raise RuntimeError("network")
+
+    client = StubClient()
+    client.payment = Broken({})
+    gateway = LiveGateway(client)
+    assert gateway.failed_payments_since(datetime.now(IST)) == []
+    assert gateway.last_fetch_complete is False

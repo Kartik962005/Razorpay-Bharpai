@@ -35,6 +35,9 @@ class LiveGateway:
         self.client = client
         self.dry_run = dry_run
         self.calls: list[dict[str, Any]] = []
+        #: False when the last listing was truncated or errored, so the caller knows not to
+        #: advance a cursor past events it has not actually read.
+        self.last_fetch_complete = True
 
     def _record(self, name: str, ok: bool, started: float, detail: str = "") -> None:
         self.calls.append(
@@ -182,14 +185,46 @@ class LiveGateway:
 
     # -- polling helpers ----------------------------------------------------------------------
 
-    def failed_payments_since(self, since: datetime, count: int = 50) -> list[dict[str, Any]]:
+    def failed_payments_since(
+        self, since: datetime, count: int = 100, max_pages: int = 20
+    ) -> list[dict[str, Any]]:
+        """Every failed payment since ``since``, following pagination to the end.
+
+        A single page would be a silent data-loss bug rather than a limitation: the caller
+        advances its cursor past the whole window afterwards, so anything beyond the first page
+        would never be seen again. A busy merchant, or a first run looking back six hours, would
+        simply lose cases. ``max_pages`` bounds the work; hitting it is reported so the caller can
+        decline to advance its cursor.
+        """
+
         started = time.perf_counter()
+        collected: list[dict[str, Any]] = []
+        self.last_fetch_complete = True
         try:
-            page = self.client.payment.all({"from": int(since.timestamp()), "count": count})
-            items = page.get("items", [])
-            self._record("payment.all", True, started, f"{len(items)} payments")
-            return [p for p in items if p.get("status") == "failed"]
+            for page_number in range(max_pages):
+                page = self.client.payment.all(
+                    {
+                        "from": int(since.timestamp()),
+                        "count": count,
+                        "skip": page_number * count,
+                    }
+                )
+                items = page.get("items", [])
+                collected.extend(items)
+                if len(items) < count:
+                    break
+            else:
+                # Fell out of the loop without a short page: there is more we have not read.
+                self.last_fetch_complete = False
+            self._record(
+                "payment.all",
+                True,
+                started,
+                f"{len(collected)} payments, complete={self.last_fetch_complete}",
+            )
+            return [p for p in collected if p.get("status") == "failed"]
         except Exception as exc:  # noqa: BLE001
+            self.last_fetch_complete = False
             self._record("payment.all", False, started, str(exc))
             return []
 
