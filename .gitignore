@@ -14,3 +14,5 @@ build/
 Thumbs.db
 scripts/*.log
 results/smoke/
+.live/
+.cache/

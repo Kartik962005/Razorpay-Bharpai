@@ -1,0 +1,198 @@
+"""The live adapter, driven by a stub account.
+
+What matters here is that a real Razorpay payment entity turns into the same kind of case the
+simulation produces, that the idempotency check reads the right entity, and that the parts test
+mode cannot do are reported honestly rather than faked.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+from typing import Any
+
+from wapsi.adapters.razorpay_live import LiveGateway
+from wapsi.config import IST
+from wapsi.core.models import Method, RootCause, Scenario
+from wapsi.core.taxonomy import diagnose
+from wapsi.live.poller import case_from_payment
+
+FAILED_PAYMENT = {
+    "id": "pay_LIVE001",
+    "amount": 129900,
+    "currency": "INR",
+    "status": "failed",
+    "method": "upi",
+    "email": "aarav@example.test",
+    "contact": "+919999900001",
+    "created_at": 1788500000,
+    "order_id": "order_LIVE001",
+    "error_code": "BAD_REQUEST_ERROR",
+    "error_description": "Payment failed",
+    "error_source": "gateway",
+    "error_step": "payment_authorization",
+    "error_reason": "bank_not_available",
+    "notes": {},
+}
+
+
+class StubResource:
+    def __init__(self, entities: dict[str, Any], page: dict[str, Any] | None = None):
+        self.entities = entities
+        self.page = page or {"items": []}
+        self.created: list[dict[str, Any]] = []
+        self.notified: list[tuple[str, str]] = []
+
+    def fetch(self, entity_id):
+        if entity_id not in self.entities:
+            raise KeyError(entity_id)
+        return self.entities[entity_id]
+
+    def all(self, data=None):
+        return self.page
+
+    def create(self, payload):
+        self.created.append(payload)
+        return {"id": "plink_created", "short_url": "https://rzp.io/i/new01", **payload}
+
+    def notifyBy(self, entity_id, medium):  # noqa: N802 - the SDK spells it this way
+        self.notified.append((entity_id, medium))
+        return True
+
+    def notify_by(self, entity_id, medium):
+        self.notified.append((entity_id, medium))
+        return True
+
+
+class StubClient:
+    def __init__(self, links=None, invoices=None, subscriptions=None, payments=None):
+        self.payment_link = StubResource(links or {})
+        self.invoice = StubResource(invoices or {})
+        self.subscription = StubResource(subscriptions or {})
+        self.payment = StubResource({}, page={"items": payments or []})
+
+
+def test_a_real_failed_payment_becomes_a_diagnosable_case():
+    case = case_from_payment(FAILED_PAYMENT, "Chai Point")
+
+    assert case.scenario is Scenario.A
+    assert case.method is Method.upi
+    assert case.amount_paise == 129900
+    assert case.customer_contact == "+919999900001"
+    assert case.razorpay["payment_id"] == "pay_LIVE001"
+    assert case.razorpay["order_id"] == "order_LIVE001"
+
+    # The whole point: Razorpay's own error fields drive the diagnosis, unchanged.
+    cause, _, text = diagnose(case)
+    assert cause is RootCause.TRANSIENT_TECH
+    assert "bank_not_available" in text
+
+
+def test_an_unfamiliar_error_reason_is_still_handled_conservatively():
+    payment = {**FAILED_PAYMENT, "error_reason": "some_code_added_next_year", "error_source": "acquirer"}
+    cause, _, _ = diagnose(case_from_payment(payment))
+    assert cause is RootCause.UNKNOWN
+
+
+def test_refresh_prefers_the_recovery_link_over_the_original():
+    """A link the agent created supersedes whatever failed first, so it is checked first."""
+
+    client = StubClient(
+        links={
+            "plink_original": {"id": "plink_original", "status": "expired"},
+            "plink_recovery": {"id": "plink_recovery", "status": "paid"},
+        }
+    )
+    gateway = LiveGateway(client)
+    case = case_from_payment(FAILED_PAYMENT)
+    case.razorpay["payment_link_id"] = "plink_original"
+    case.razorpay["recovery_link_id"] = "plink_recovery"
+
+    result = gateway.refresh(case, datetime.now(IST))
+    assert result["paid"] and result["entity"] == "plink_recovery"
+
+
+def test_refresh_reports_unpaid_when_nothing_has_settled():
+    client = StubClient(links={"plink_original": {"id": "plink_original", "status": "created"}})
+    gateway = LiveGateway(client)
+    case = case_from_payment(FAILED_PAYMENT)
+    case.razorpay["payment_link_id"] = "plink_original"
+    assert not gateway.refresh(case, datetime.now(IST))["paid"]
+
+
+def test_a_missing_entity_does_not_break_the_poll():
+    """A fetch that fails mid-poll must be survivable; the next poll tries again."""
+
+    gateway = LiveGateway(StubClient())
+    case = case_from_payment(FAILED_PAYMENT)
+    case.razorpay["payment_link_id"] = "plink_gone"
+    assert not gateway.refresh(case, datetime.now(IST))["paid"]
+    assert any(not call["ok"] for call in gateway.calls)
+
+
+def test_a_recovery_link_is_tagged_back_to_its_case():
+    client = StubClient()
+    gateway = LiveGateway(client)
+    case = case_from_payment(FAILED_PAYMENT)
+    case.root_cause = RootCause.TRANSIENT_TECH
+    now = datetime.now(IST)
+
+    gateway.create_payment_link(case, now, description="retry", expire_by=now + timedelta(days=3))
+
+    payload = client.payment_link.created[0]
+    assert payload["notes"]["wapsi_case_id"] == case.id
+    assert payload["notes"]["root_cause"] == "TRANSIENT_TECH"
+    assert payload["amount"] == case.amount_paise
+    # Wapsi owns the reminder cadence; the platform's own would break the policy caps.
+    assert payload["reminder_enable"] is False
+    assert payload["notify"] == {"sms": False, "email": False}
+
+
+def test_notifications_use_the_right_spelling_per_entity():
+    """The SDK is camelCase on payment links and snake_case on invoices. Wrapped once, here."""
+
+    client = StubClient()
+    gateway = LiveGateway(client)
+
+    assert gateway.notify("payment_link", "plink_1", "sms")["success"]
+    assert gateway.notify("invoice", "inv_1", "email")["success"]
+    assert client.payment_link.notified == [("plink_1", "sms")]
+    assert client.invoice.notified == [("inv_1", "email")]
+
+
+def test_notifying_an_entity_that_cannot_be_notified_fails_softly():
+    gateway = LiveGateway(StubClient())
+    result = gateway.notify("subscription", "sub_1", "sms")
+    assert not result["success"] and "cannot notify" in result["reason"]
+
+
+def test_retrying_a_charge_is_reported_as_unavailable_not_faked():
+    """Test mode has no server-side charge. Saying so is the honest option, and the agent then
+    falls through to the action it can actually take."""
+
+    gateway = LiveGateway(StubClient())
+    result = gateway.retry_charge(case_from_payment(FAILED_PAYMENT), datetime.now(IST))
+
+    assert result["attempted"] is False
+    assert result["success"] is False
+    assert "test mode" in result["reason"]
+    assert LiveGateway.supports_retry is False
+
+
+def test_only_failed_payments_are_picked_up():
+    client = StubClient(
+        payments=[
+            FAILED_PAYMENT,
+            {**FAILED_PAYMENT, "id": "pay_OK", "status": "captured"},
+        ]
+    )
+    gateway = LiveGateway(client)
+    found = gateway.failed_payments_since(datetime.now(IST) - timedelta(hours=1))
+    assert [p["id"] for p in found] == ["pay_LIVE001"]
+
+
+def test_dry_run_touches_no_account():
+    gateway = LiveGateway(StubClient(), dry_run=True)
+    case = case_from_payment(FAILED_PAYMENT)
+    link = gateway.create_payment_link(case, datetime.now(IST))
+    assert link["id"] == "plink_dryrun"
+    assert gateway.notify("payment_link", "plink_1", "sms")["dry_run"]

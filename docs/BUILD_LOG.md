@@ -211,3 +211,37 @@ Also measured and reported rather than smoothed over: 114 of the agent's 604 mod
 outright under rate limiting, and the call budget ran out partway through the batch, so a large
 share of its messages came from templates. The run completed anyway, which is the property the
 budget exists to provide.
+
+## 2026-09-04 — session 4: the live account, the webhook and the dashboard
+
+**Broke:** `payment_link.notify_by(...)` raised `AttributeError`.
+
+**Got out:** The Razorpay Python SDK spells the same operation two ways — `notifyBy` on a payment
+link, `notify_by` on an invoice. Found by introspecting the client rather than trusting the docs,
+which is a habit worth keeping for any SDK. Wrapped once in the gateway so nothing above it has to
+know, with a test that pins both spellings.
+
+**Broke, in the sense of "cannot be done at all":** there is no way to re-attempt a charge from
+the server in test mode. A retry needs the customer to authenticate it.
+
+**Got out:** `retry_charge` reports `attempted: False` with the reason, rather than returning a
+plausible-looking failure. The agent then treats it like any other unavailable action and falls
+through to the next best one, which is a recovery link — which is why the live demo shows links
+where the batch shows silent retries. Saying this in the code and the README is better than a demo
+that quietly implies a capability the sandbox does not have.
+
+**Broke:** A test that swapped the webhook receiver had no effect — the endpoint kept using the
+one from `.env` and rejected the test's signatures.
+
+**Got out:** The route had closed over the receiver instead of reading it from application state.
+Reading it from `request.app.state` fixed the test and is better regardless: it means a rotated
+secret can be picked up by replacing the receiver rather than restarting the process, which is the
+same class of stale-state problem that cost an hour during setup.
+
+**Verified end to end, without a real payment:** a genuine Razorpay webhook (created by making and
+cancelling a ₹10 payment link through the API) travelled through the Cloudflare tunnel into the
+running app, passed HMAC verification against the configured secret, and was acknowledged with a
+200. The `payment.failed` path is covered by tests using Razorpay's own payload shape, including
+signature failure, body tampering and retry deduplication. The one step that cannot be automated —
+paying a link with `failure@razorpay` to produce a real decline — is left to a person, and the
+seed command prints the instructions for it.

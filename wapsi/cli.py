@@ -333,6 +333,26 @@ def case(
 
 
 @app.command()
+def serve(
+    port: int = typer.Option(8000, help="Port to listen on."),
+    host: str = typer.Option("127.0.0.1", help="Interface to bind."),
+) -> None:
+    """Serve the dashboard and the webhook endpoint."""
+
+    import uvicorn
+
+    from wapsi.config import fingerprint, get_settings
+
+    settings = get_settings()
+    console.print(f"[bold]dashboard[/bold]  http://{host}:{port}/")
+    console.print(f"[bold]webhook[/bold]    POST /webhooks/razorpay (and / as a fallback)")
+    console.print(f"[dim]webhook secret loaded: {fingerprint(settings.razorpay_webhook_secret)}[/dim]")
+    if not settings.razorpay_webhook_secret:
+        console.print("[yellow]no webhook secret set — deliveries will be rejected[/yellow]")
+    uvicorn.run("wapsi.api.app:app", host=host, port=port, log_level="warning")
+
+
+@app.command()
 def rules() -> None:
     """Print every bound the agent operates under, with its rule id."""
 
@@ -352,6 +372,11 @@ def rules() -> None:
         f"{policy.windows['receivables_messaging']['end']} · "
         f"AFA threshold ₹{policy.afa_threshold_paise / 100:,.0f}"
     )
+
+
+from wapsi.live.cli import live as _live_app  # noqa: E402
+
+app.add_typer(_live_app, name="live")
 
 
 if __name__ == "__main__":
