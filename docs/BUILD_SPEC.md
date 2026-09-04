@@ -270,10 +270,13 @@ cost from policy.yaml, delivery log JSONL, and (in sim) a hook so the customer m
 
 ## 7. LLM adapter (`adapters/llm.py`) — Groq via OpenAI-compatible API
 
-- Client: `openai.OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)`. Models: `LLM_MODEL`
-  (default `llama-3.3-70b-versatile`) for `advise_action` and `write_brief`; `LLM_MODEL_FAST`
-  (default `llama-3.1-8b-instant`) for `compose_message`, `parse_reply`, `explain_diagnosis`.
-  Verify both ids exist in the Groq console before the batch run; they get rotated.
+- Client: `openai.OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)`. Models on this account
+  (verified 2026-09-04 via `GET /models`): `LLM_MODEL=openai/gpt-oss-120b` for `advise_action`
+  and `write_brief`; `LLM_MODEL_FAST=openai/gpt-oss-20b` for `compose_message`, `parse_reply`,
+  `explain_diagnosis`. Both are reasoning models: always pass `max_tokens >= 300` and
+  `extra_body={"reasoning_effort": "low"}`, otherwise the reply content comes back empty. JSON
+  mode (`response_format={"type": "json_object"}`) is confirmed working. Llama 3.x ids are gone
+  from the catalogue; never hard-code a model id outside `.env`.
 - Free-tier limits are real (roughly 30 req/min; the 70B model has a low daily cap, the 8B model a
   high one). Therefore: `LLM_MAX_CALLS` budget per run (default 600), a semaphore of 4 concurrent
   calls, exponential backoff on 429 (1, 2, 4, 8 s, then give up → fallback), an on-disk cache in
@@ -378,7 +381,13 @@ wapsi serve --port 8000                       # API + dashboard (+ webhook endpo
 wapsi live seed                               # create test-mode entities, write live_state.json
 wapsi live watch --poll 10                    # poll Razorpay, run the agent on real cases
 wapsi case <id>                               # print one case's audit timeline
+wapsi live doctor                             # keys OK? models OK? GET /v1/webhooks -> url/events; tunnel reachable?
 ```
+
+`scripts/` already holds the pieces `live doctor` grows from: `check_keys.py` (Razorpay auth +
+LLM models), `webhook_probe.py` (minimal receiver with signature check), `webhook_trigger.py`
+(create + cancel a ₹10 payment link to fire `payment_link.cancelled`), `set_secrets.py`
+(interactive, hidden-input editor for the three secrets in `.env`).
 
 ## 11. API and dashboard (`api/`)
 
@@ -407,7 +416,8 @@ the planner with the real clock and the live gateway. Recovery links it creates 
 `notes.wapsi_case_id`; the console prints the `short_url` so the demo can pay it with
 `success@razorpay` → next poll sees `paid` → case closes `recovered`.
 
-**Webhook endpoint** (`POST /webhooks/razorpay`): read raw body; verify
+**Webhook endpoint** (`POST /webhooks/razorpay`, with `POST /` as an alias because a pasted URL
+can lose its path): read raw body; verify
 `X-Razorpay-Signature` with `razorpay.Utility().verify_webhook_signature(body, sig, RAZORPAY_WEBHOOK_SECRET)`;
 dedupe on the `x-razorpay-event-id` header (store seen ids); normalise
 `payment.failed`, `payment.captured`, `order.paid`, `payment_link.paid`, `payment_link.expired`,
