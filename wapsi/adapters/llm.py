@@ -34,7 +34,13 @@ CACHE_PATH = REPO_ROOT / ".cache" / "llm.sqlite"
 #: ceiling returns an empty message rather than a short one.
 MIN_OUTPUT_TOKENS = 400
 
-BACKOFF_SECONDS = (1, 2, 4, 8)
+#: One retry after a rate limit, then fall back. Retreating for fifteen seconds per failed call
+#: turned a twenty-minute batch into a two-hour one; a template is a better answer than a wait.
+BACKOFF_SECONDS = (3,)
+
+#: Free tiers meter requests per minute. Spacing calls out is what keeps them from failing in the
+#: first place, and makes a batch's runtime predictable instead of hostage to 429s.
+MIN_INTERVAL_SECONDS = 2.1
 
 
 @dataclass
@@ -89,6 +95,7 @@ class LLM:
         self.cache = _Cache() if cache else None
         self._client = None
 
+        self._last_call = 0.0
         self.enabled = self.settings.llm_configured
         if self.enabled:
             try:
@@ -130,6 +137,11 @@ class LLM:
         for attempt, pause in enumerate((0, *BACKOFF_SECONDS)):
             if pause:
                 time.sleep(pause)
+            # Throttle: never two calls closer together than the free tier tolerates.
+            wait = MIN_INTERVAL_SECONDS - (time.monotonic() - self._last_call)
+            if wait > 0:
+                time.sleep(wait)
+            self._last_call = time.monotonic()
             try:
                 self.stats.calls += 1
                 self.stats.by_task[task] = self.stats.by_task.get(task, 0) + 1

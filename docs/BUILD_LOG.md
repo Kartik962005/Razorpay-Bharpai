@@ -321,3 +321,13 @@ reviewer has to count in the audit log.
 
 Also added: continuous integration on Linux and Windows with no secrets, so the keyless claim is
 checked on every push rather than once by hand.
+
+**Broke:** The re-run with a bigger model budget crawled — a tenth of the way through the agent
+phase after twenty minutes, on course for hours.
+
+**Got out:** The free tier meters requests per minute, and my backoff on a 429 was 1+2+4+8 seconds
+before giving up: fifteen seconds of dead time per rate-limited call, and there were hundreds. The
+right shape is the opposite — space calls out at just under the limit so they do not fail, retry
+once, and otherwise fall back to a template. A throttle of 2.1 seconds between calls made the
+runtime predictable instead of hostage to the provider's mood, and turned failed calls from a
+runtime problem into the reported statistic they should have been all along.

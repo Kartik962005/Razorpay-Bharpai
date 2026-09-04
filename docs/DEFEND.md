@@ -118,9 +118,14 @@ report now measures so it cannot regress silently.
 ### Numbers to know cold
 
 - 500 cases, seed 42, identical batch for every policy
-- do nothing 22.2% · platform (Razorpay defaults) — see report · naive 29.6% · Wapsi 46.8%
-- ₹17.6L net, ₹13.1L above doing nothing; strict figure ₹14.3L excluding organic recoveries
+- do nothing 22.2% · **Razorpay defaults 28.2%** · naive 29.6% · Wapsi 46.8%
+- ₹17.6L net · defaults ₹14.5L · naive ₹15.8L · nothing ₹4.5L
+- **₹2.8L above the platform's own defaults**, with 816 messages to their 1,196 and 62 opt-outs
+  to their 140 — the number to lead with, because it is the fair one
+- strict figure ₹14.3L excluding every case that would have resolved itself
 - 0 violations against naive's 2,256, of which 112 were messages to people who said stop
-- 1 dispute against 126
+- 1 dispute against naive's 126 and the defaults' 13
+- hostile assumptions (penalties stripped, chargebacks free): Wapsi ₹20.1L, naive ₹18.0L,
+  defaults ₹15.4L — ranking unchanged
 - 51 false nudges, counted against ourselves
 - 169 tests, no network; CI on Linux and Windows, no keys

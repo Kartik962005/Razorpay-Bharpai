@@ -23,19 +23,28 @@ on.
 500 synthetic cases. Every policy ran over the **identical batch with the same random draws**, so
 the differences below are decisions, not luck.
 
-| policy | recovered | rate | ₹ recovered | ₹ cost | **₹ net** | opt-outs | disputes | **rule violations** |
-|---|---|---|---|---|---|---|---|---|
-| do nothing | 111 | 22.2% | ₹4,53,210 | ₹13 | ₹4,53,197 | 0 | 0 | 0 |
-| naive (retry ×3, then text) | 148 | 29.6% | ₹16,44,185 | ₹63,141 | ₹15,81,044 | 104 | 126 | **2,256** |
-| **Wapsi, rules only** | 233 | 46.6% | ₹17,24,498 | ₹659 | ₹17,23,840 | 62 | 1 | **0** |
-| **Wapsi, model-advised** | **234** | **46.8%** | ₹17,64,020 | ₹662 | **₹17,63,358** | 61 | 1 | **0** |
+| policy | recovered | rate | ₹ recovered | ₹ cost | **₹ net** | messages | opt-outs | disputes | **rule violations** |
+|---|---|---|---|---|---|---|---|---|---|
+| do nothing | 111 | 22.2% | ₹4,53,210 | ₹13 | ₹4,53,197 | 0 | 0 | 0 | 0 |
+| **Razorpay defaults** (retry ladder + `reminder_enable`) | 141 | 28.2% | ₹14,54,810 | ₹6,715 | ₹14,48,095 | 1,196 | 140 | 13 | — |
+| naive (retry ×3, then text) | 148 | 29.6% | ₹16,44,185 | ₹63,141 | ₹15,81,044 | 750 | 104 | 126 | **2,256** |
+| **Wapsi, rules only** | 233 | 46.6% | ₹17,24,498 | ₹659 | ₹17,23,840 | 816 | 62 | 1 | **0** |
+| **Wapsi, model-advised** | **234** | **46.8%** | ₹17,64,020 | ₹662 | **₹17,63,358** | 817 | 61 | 1 | **0** |
 
-**₹13.1 lakh recovered above doing nothing, at a cost of ₹662, with zero rule violations.**
+**₹2.8 lakh more than Razorpay's own defaults recover, with a third fewer messages and less than
+half the opt-outs. ₹13.1 lakh more than doing nothing. Zero rule violations.**
 
-The naive baseline is the interesting comparison, not the do-nothing one. It recovers a third less
-money while spending 95× more, because 126 of its recoveries turn into chargebacks. Judged by the
-same policy engine Wapsi obeys, it breaks rules 2,256 times — including **112 messages sent to
-people who had already said stop** and 16 retries of payments that risk had declined.
+The fair comparison is the second row — what a merchant gets from the platform unprompted — and
+that is the claim: Wapsi recovers 65% more cases than the defaults while sending 1,196 → 816
+messages, because it sends the *right* message rather than three generic ones. The defaults lose
+140 customers to opt-outs, 8.5 messages per recovery; Wapsi loses 62.
+
+The naive row is what untuned merchant automation actually does, and it is worth keeping because it
+shows what the rules are for. It spends 95× more than Wapsi and 126 of its recoveries turn into
+chargebacks. Judged by the same policy engine Wapsi obeys, it breaks rules 2,256 times — including
+**112 messages sent to people who had already said stop** and 16 retries of payments that risk had
+declined. (The defaults row is not scored for violations: those are the platform's actions, not a
+merchant's policy.)
 
 Recovery rate by root cause — this is where cause-awareness shows up:
 

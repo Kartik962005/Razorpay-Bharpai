@@ -77,14 +77,17 @@ Click the case in the dashboard and scroll the audit trail.
 > "One demo proves nothing, so: 500 cases, four policies, the same batch and the same random
 > draws."
 
-| | recovered | ₹ net | disputes | violations |
-|---|---|---|---|---|
-| do nothing | 111 | ₹4,53,197 | 0 | 0 |
-| naive | 148 | ₹15,81,044 | 126 | 2,256 |
-| **Wapsi** | **234** | **₹17,63,358** | **1** | **0** |
+| | recovered | ₹ net | messages | opt-outs | violations |
+|---|---|---|---|---|---|
+| do nothing | 111 | ₹4,53,197 | 0 | 0 | 0 |
+| Razorpay defaults | 141 | ₹14,48,095 | 1,196 | 140 | — |
+| naive | 148 | ₹15,81,044 | 750 | 104 | 2,256 |
+| **Wapsi** | **234** | **₹17,63,358** | 817 | 61 | **0** |
 
-> "₹13.1 lakh above doing nothing, for ₹662 of cost, and zero rule violations — judged by the same
-> engine that scores the baseline's 2,256.
+> "The row that matters is the second one — what a merchant gets from Razorpay's own defaults.
+> Wapsi recovers 65% more cases with a third fewer messages, and loses 61 customers to opt-outs
+> instead of 140. ₹2.8 lakh more, for ₹662 of cost, and zero rule violations — judged by the same
+> engine that scores the naive row's 2,256.
 >
 > Three things I'd rather you heard from me than found yourselves. The measured results are a
 > simulation, because test mode can't produce 500 failures — the priors are published figures, and
