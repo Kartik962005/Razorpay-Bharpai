@@ -426,11 +426,15 @@ into the same event objects the poller emits. Return 200 fast; process async.
 5. Test: make a failed payment; the dashboard's webhook page shows delivery status; `wapsi serve`
    logs the event. Note: quick-tunnel URLs change every run — update the webhook URL each time.
 
-Account facts (checked 2026-09-04): the webhook page offers `payment.*`, `order.*`, `invoice.*`,
-`refund.*`, `payment_link.*`, `payment.downtime.*` and `payment.dispute.*` events but **no
-`subscription.*` events** until Subscriptions is activated in the dashboard. Do not depend on
-them: scenario C in live mode is driven by the poller (`subscription.fetch`), and webhooks only
-add latency improvements for A/B/D. The webhook secret is set (`RAZORPAY_WEBHOOK_SECRET`).
+Account facts (2026-09-04): Subscriptions is activated; the test-mode webhook is created with
+`RAZORPAY_WEBHOOK_SECRET` set in `.env` and these 26 events subscribed: `payment.authorized`,
+`payment.failed`, `payment.captured`, `payment.dispute.created`, `payment.downtime.started/
+updated/resolved`, `order.paid`, `invoice.paid/partially_paid/expired`,
+`subscription.authenticated/activated/pending/halted/charged/cancelled/resumed/paused`,
+`refund.created`, `payment_link.paid/partially_paid/expired/cancelled`. The tunnel is a
+cloudflared quick tunnel (`cloudflared tunnel --url http://localhost:8000`); its hostname changes
+on restart, so re-edit the webhook URL before the demo. The poller remains the default path and
+must work with webhooks disabled.
 
 ## 13. Tests (`tests/`, pytest)
 
