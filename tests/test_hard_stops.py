@@ -47,14 +47,26 @@ def test_risk_decline_can_still_be_escalated_to_a_human(make_case, denials):
 def test_merchant_config_never_reaches_the_customer(make_case, denials):
     case = make_case(root_cause=RootCause.MERCHANT_CONFIG)
     assert "R06" in denials(case, ActionType.SEND_PAYMENT_LINK)
-    assert "R06" in denials(case, ActionType.RETRY_CHARGE)
+    assert "R06" in denials(case, ActionType.SEND_REMINDER)
+    assert "R06" in denials(case, ActionType.OFFER_METHOD_SWITCH)
     # Telling the merchant is the whole point, so that one action stays open.
     assert denials(case, ActionType.ALERT_MERCHANT) == []
 
 
-def test_merchant_config_closes_once_the_merchant_has_been_told(engine, make_case, ctx):
+def test_a_merchant_fault_may_still_be_retried_quietly(make_case, denials):
+    """The rule shields the customer from being chased. A silent retry chases nobody, and it is
+    what actually collects the money once the merchant fixes their configuration."""
+
     case = make_case(root_cause=RootCause.MERCHANT_CONFIG, merchant_alerted=True)
-    assert (Outcome.merchant_issue, "R06") in engine.hard_stops(case, ctx, NOW)
+    assert "R06" not in denials(case, ActionType.RETRY_CHARGE)
+
+
+def test_merchant_config_closes_after_the_alert_and_a_couple_of_retries(engine, make_case, ctx):
+    told = make_case(root_cause=RootCause.MERCHANT_CONFIG, merchant_alerted=True)
+    assert (Outcome.merchant_issue, "R06") not in engine.hard_stops(told, ctx, NOW)
+
+    tried = make_case(root_cause=RootCause.MERCHANT_CONFIG, merchant_alerted=True, retries=3)
+    assert (Outcome.merchant_issue, "R06") in engine.hard_stops(tried, ctx, NOW)
 
 
 def test_customer_cancellation_stops_subscription_recovery(engine, make_case):
@@ -93,8 +105,10 @@ def test_no_action_survives_a_hard_stop(make_case, denials):
 
 
 def test_escalation_triggers_fire_on_the_documented_conditions(engine, make_case, ctx):
-    high_value = make_case(amount_paise=3_000_000, nudges=2)
+    high_value = make_case(amount_paise=3_000_000, nudges=3)
     assert "R30" in engine.escalation_triggers(high_value, ctx)
+    too_early = make_case(amount_paise=3_000_000, nudges=2)
+    assert "R30" not in engine.escalation_triggers(too_early, ctx)
 
     unreliable = make_case(promises_broken=2)
     assert "R31" in engine.escalation_triggers(unreliable, ctx)

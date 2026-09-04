@@ -24,6 +24,7 @@ from wapsi.config import IST, POLICY_PATH
 from wapsi.core import taxonomy
 from wapsi.core.models import (
     CONTACT_ACTIONS,
+    NOTICE_ACTIONS,
     Action,
     ActionType,
     AuditEntry,
@@ -90,6 +91,10 @@ class PolicyContext:
 
     downtime_active: bool = False
     customer_messages_last_7d: int = 0
+    #: When those messages were sent. The weekly cap is a rolling window, so knowing the oldest
+    #: one is what lets the engine say *when* contact becomes permissible again rather than just
+    #: refusing. Without it the planner cannot tell a temporary cap from a permanent one.
+    customer_message_times: list[datetime] = field(default_factory=list)
     salary_window: bool = False
     paid: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
@@ -189,18 +194,39 @@ class PolicyEngine:
             stops.append((Outcome.refunded, "R04"))
         if case.root_cause is RootCause.RISK_DECLINE:
             stops.append((Outcome.risk_blocked, "R05"))
-        if case.root_cause is RootCause.MERCHANT_CONFIG and case.merchant_alerted:
-            # The customer is not at fault and must never be chased; once the merchant has been
-            # told, there is nothing further for the agent to do.
+        if (
+            case.root_cause is RootCause.MERCHANT_CONFIG
+            and case.merchant_alerted
+            and case.retries >= 3
+        ):
+            # Told the merchant, and quietly re-attempted twice while waiting for their fix.
+            # Beyond that the money is theirs to recover, not ours.
             stops.append((Outcome.merchant_issue, "R06"))
         if case.cancelled_by_customer:
             stops.append((Outcome.gave_up, "R07"))
-        if case.age_days(now) > self._max_age_days(case):
+        if case.age_days(now) > self.max_age_days(case):
             stops.append((Outcome.expired, "R22"))
         return stops
 
-    def _max_age_days(self, case: Case) -> int:
+    def max_age_days(self, case: Case) -> int:
         return int(self.caps["max_age_days"][case.scenario.value])
+
+    def _cap(self, name: str, case: Case) -> int:
+        """Read a cap that may be a single number or a per-scenario mapping."""
+
+        value = self.caps[name]
+        if isinstance(value, dict):
+            return int(value[case.scenario.value])
+        return int(value)
+
+    def nudge_cap(self, case: Case) -> int:
+        return self._cap("nudges_per_case", case)
+
+    def nudge_gap(self, case: Case) -> timedelta:
+        return timedelta(hours=self._cap("nudge_gap_hours", case))
+
+    def action_cap(self, case: Case) -> int:
+        return self._cap("actions_per_case", case)
 
     def escalation_triggers(self, case: Case, ctx: PolicyContext) -> list[str]:
         """Rule ids demanding a human takes over. Any hit means the agent stops deciding."""
@@ -252,6 +278,8 @@ class PolicyEngine:
         if action.type not in (ActionType.CLOSE, ActionType.WAIT):
             exempt = {
                 ActionType.ALERT_MERCHANT: {"R06"},
+                # A retry reaches no customer, so the rule protecting customers does not bar it.
+                ActionType.RETRY_CHARGE: {"R06"},
                 ActionType.ESCALATE_HUMAN: {"R05", "R06"},
             }.get(action.type, set())
             seen: set[str] = set()
@@ -278,7 +306,7 @@ class PolicyEngine:
         if action.type in (ActionType.CLOSE, ActionType.WAIT, ActionType.ESCALATE_HUMAN):
             return denials
 
-        if case.actions >= self.caps["actions_per_case"]:
+        if case.actions >= self.action_cap(case):
             deny("R21")
 
         if action.type is ActionType.RETRY_CHARGE:
@@ -314,22 +342,50 @@ class PolicyEngine:
         if case.root_cause is RootCause.TRANSIENT_TECH:
             if self.transient["wait_for_downtime_resolved"] and ctx.downtime_active:
                 deny("R16")
-            gap = timedelta(minutes=int(self.transient["min_gap_minutes"]))
-            if case.last_retry_at is not None and now - case.last_retry_at < gap:
-                deny("R16", case.last_retry_at + gap)
-            window_start = now - timedelta(hours=24)
-            recent = [t for t in case.retry_times if t >= window_start]
-            if len(recent) >= int(self.transient["max_per_24h"]):
-                deny("R16", min(recent) + timedelta(hours=24))
+
+        gap = timedelta(minutes=int(self.transient["min_gap_minutes"]))
+        if case.last_retry_at is not None and now - case.last_retry_at < gap:
+            deny("R16", case.last_retry_at + gap)
+        window_start = now - timedelta(hours=24)
+        recent = [t for t in case.retry_times if t >= window_start]
+        if len(recent) >= int(self.transient["max_per_24h"]):
+            deny("R16", min(recent) + timedelta(hours=24))
+
+    def _weekly_cap(self, ctx: PolicyContext, now: datetime) -> tuple[bool, datetime | None]:
+        """Is this customer over their weekly message allowance, and when does that lift?
+
+        A rolling cap always expires. Saying when is what lets the planner wait instead of
+        abandoning a case it could still recover next week.
+        """
+
+        window = timedelta(days=7)
+        recent = sorted(t for t in ctx.customer_message_times if now - t < window)
+        count = len(recent) if ctx.customer_message_times else ctx.customer_messages_last_7d
+        if count < self.caps["customer_messages_per_7d"]:
+            return False, None
+        return True, (recent[0] + window if recent else None)
 
     def _check_contact(self, action, case: Case, now: datetime, ctx: PolicyContext, deny) -> None:
-        window = self._check_messaging_window(case, now)
-        if window is not None:
-            deny(window[0], window[1])
+        if action.type not in NOTICE_ACTIONS:
+            window = self._check_messaging_window(case, now)
+            if window is not None:
+                deny(window[0], window[1])
 
-        if case.nudges >= self.caps["nudges_per_case"]:
+        # A pre-debit notice is a legal precondition for charging, not a dunning message, so it
+        # is not charged against the nudge budget — otherwise the rules would forbid the very
+        # step that makes a compliant retry possible.
+        if action.type in NOTICE_ACTIONS:
+            over, earliest = self._weekly_cap(ctx, now)
+            if over:
+                deny("R23", earliest)
+            window = self._check_messaging_window(case, now)
+            if window is not None:
+                deny(window[0], window[1])
+            return
+
+        if case.nudges >= self.nudge_cap(case):
             deny("R20")
-        gap = timedelta(hours=int(self.caps["nudge_gap_hours"]))
+        gap = self.nudge_gap(case)
         if case.last_contact_at is not None and now - case.last_contact_at < gap:
             deny("R20", case.last_contact_at + gap)
 
@@ -339,8 +395,9 @@ class PolicyEngine:
                 # Let the customer finish on their own before interrupting them.
                 deny("R20", case.created_at + delay)
 
-        if ctx.customer_messages_last_7d >= self.caps["customer_messages_per_7d"]:
-            deny("R23")
+        over, earliest = self._weekly_cap(ctx, now)
+        if over:
+            deny("R23", earliest)
 
         if case.amount_paise < self.economics["min_amount_for_nudge_paise"]:
             deny("R24")
@@ -386,7 +443,7 @@ class PolicyEngine:
 
         allowed: list[Action] = []
         denied: list[Denial] = []
-        for action_type in taxonomy.candidate_actions(case.root_cause or RootCause.UNKNOWN):
+        for action_type in taxonomy.candidate_actions(case):
             action = Action(
                 case_id=case.id,
                 type=action_type,

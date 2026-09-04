@@ -75,14 +75,30 @@ _OPENERS: dict[tuple[Scenario, Language, Tone], str] = {
     (Scenario.D, Language.hinglish, Tone.firm): "{merchant} ka {amount} invoice abhi tak overdue hai",
 }
 
+#: The pre-debit notification. Its job is to state the amount and the date plainly; RBI requires
+#: it 24 hours before any mandate debit, and it is the only message here that is not a nudge.
+PREDEBIT: dict[Language, str] = {
+    Language.en: "Hi {name}, {merchant} will attempt your {amount} auto-pay again tomorrow. Keep your balance topped up, or pay now: {link}",
+    Language.hinglish: "Hi {name}, {merchant} kal aapka {amount} ka auto-pay dobara try karega. Balance rakhein, ya abhi pay karein: {link}",
+}
+
 _CLOSERS: dict[Language, str] = {
     Language.en: "Pay here: {link}",
     Language.hinglish: "Yahan pay karein: {link}",
 }
 
 
-def render(ctx: MessageContext) -> str:
+def render(ctx: MessageContext, *, predebit: bool = False, guidance: bool = True) -> str:
     """Build the message for this context. Always fits the channel's character limit."""
+
+    if predebit:
+        text = PREDEBIT[ctx.language].format(
+            name=ctx.first_name,
+            merchant=ctx.merchant_name,
+            amount=ctx.amount_text,
+            link=ctx.link,
+        )
+        return f"{text} {ctx.opt_out_line}"
 
     key = (ctx.scenario, ctx.language, ctx.tone)
     opener = _OPENERS.get(key) or _OPENERS[(Scenario.A, ctx.language, ctx.tone)]
@@ -91,10 +107,10 @@ def render(ctx: MessageContext) -> str:
     closer = _CLOSERS[ctx.language].format(link=ctx.link)
 
     parts = [f"{greeting} {body}."]
-    if ctx.guidance:
+    if ctx.guidance and guidance:
         # Only the first letter changes: str.capitalize would turn "UPI" into "upi".
-        guidance = ctx.guidance[0].upper() + ctx.guidance[1:]
-        parts.append(f"{guidance}.")
+        advice = ctx.guidance[0].upper() + ctx.guidance[1:]
+        parts.append(f"{advice}.")
     parts.append(closer)
     parts.append(ctx.opt_out_line)
     text = " ".join(parts)

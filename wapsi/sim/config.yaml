@@ -1,0 +1,167 @@
+# The simulated world.
+#
+# Two things live here, and they must not be confused:
+#
+#   * `mix` and `amounts` shape the batch — what a mid-size Indian merchant's failures look like.
+#   * `behaviour` is the hidden truth about whether a customer actually pays. The agent never
+#     reads this file. Its own beliefs live in wapsi/core/taxonomy.py and are deliberately
+#     coarser and different, so the agent cannot be accused of holding the answer key.
+#
+# Every number is a prior taken from published figures (docs/RESEARCH.md section 3) or a stated
+# assumption. `wapsi sensitivity` re-runs the whole batch with these scaled by 0.7 and 1.3; if
+# the ranking of the policies changes under that, the report says so.
+
+clock:
+  start: "2026-08-03 09:00"   # a Monday
+  horizon_days: 30
+  tick_minutes: 15
+  arrival_days: 10            # cases appear over this window, so sequences have room to play out
+
+mix:
+  scenarios:
+    payment_failed: 0.40
+    checkout_abandoned: 0.20
+    subscription_failed: 0.25
+    overdue_receivable: 0.15
+
+  # Cause mix per scenario, in relative weights. UPI-heavy and business-decline-heavy, which is
+  # what Indian volumes actually look like: technical declines are the small tail, not the story.
+  causes:
+    payment_failed:
+      TRANSIENT_TECH: 15
+      INSUFFICIENT_FUNDS: 22
+      LIMIT_EXCEEDED: 8
+      CUSTOMER_ABANDON: 22
+      CUSTOMER_INPUT: 15
+      INSTRUMENT_BLOCKED: 8
+      RISK_DECLINE: 3
+      MERCHANT_CONFIG: 3
+      UNKNOWN: 4
+    subscription_failed:
+      INSUFFICIENT_FUNDS: 45
+      TRANSIENT_TECH: 15
+      MANDATE_ISSUE: 20
+      INSTRUMENT_BLOCKED: 10
+      LIMIT_EXCEEDED: 5
+      UNKNOWN: 5
+
+  methods:
+    payment_failed: {upi: 65, card: 25, netbanking: 7, wallet: 3}
+    checkout_abandoned: {upi: 70, card: 30}
+    subscription_failed: {upi_autopay: 60, card: 30, emandate: 10}
+    overdue_receivable: {netbanking: 60, upi: 40}
+
+amounts:
+  payment_failed: {kind: lognormal, median: 89900, sigma: 0.9, min: 4900, max: 4999900}
+  checkout_abandoned: {kind: lognormal, median: 129900, sigma: 0.8, min: 9900, max: 4999900}
+  subscription_failed:
+    kind: choice
+    values: [19900, 29900, 49900, 99900, 149900, 499900, 1800000]
+    weights: [18, 22, 20, 15, 12, 8, 5]
+  overdue_receivable: {kind: lognormal, median: 1800000, sigma: 0.8, min: 200000, max: 25000000}
+
+customers:
+  liquidity: {tight: 0.35, ok: 0.45, good: 0.20}
+  intent_beta: [4, 2]
+  promise_reliability_beta: [3, 2]
+  language: {hinglish: 0.55, en: 0.45}
+  channel: {sms: 0.45, whatsapp: 0.35, email: 0.20}
+  # How many unanswered contacts before this customer opts out for good.
+  opt_out_threshold: {2: 0.10, 4: 0.30, 7: 0.60}
+  # Chance the customer pays with no intervention at all, and when. This is the do-nothing
+  # baseline, and the denominator for the false-nudge cost we report against ourselves.
+  organic:
+    payment_failed: {p: 0.14, within_hours: 48}
+    checkout_abandoned: {p: 0.12, within_hours: 24}
+    subscription_failed: {p: 0.10, within_hours: 96}
+    overdue_receivable: {p: 0.18, within_hours: 240}
+
+world:
+  downtime:
+    episodes_per_week: 4
+    min_minutes: 20
+    max_minutes: 90
+    banks: [HDFC, SBI, ICICI, Axis, PhonePe, GPay, Paytm]
+  # NPCI 2026 peak: mandates attempted here fail with this probability whatever else is true.
+  npci_peak: {start: "10:00", end: "13:00", failure_probability: 0.60}
+  salary_days: [1, 2, 3, 4, 5, 6, 7]
+
+# P(customer pays | root cause, action). The heart of the simulation.
+behaviour:
+  TRANSIENT_TECH:
+    RETRY_CHARGE: {base: 0.80, during_outage: 0.05}
+    SEND_PAYMENT_LINK: 0.35
+    OFFER_METHOD_SWITCH: 0.30
+  INSUFFICIENT_FUNDS:
+    RETRY_CHARGE: {within_12h: 0.08, within_72h: 0.25, salary_window: 0.45}
+    SEND_PAYMENT_LINK: 0.20
+    OFFER_METHOD_SWITCH: 0.22
+  LIMIT_EXCEEDED:
+    RETRY_CHARGE: {same_day: 0.05, next_day: 0.65}
+    SEND_PAYMENT_LINK: 0.25
+    OFFER_METHOD_SWITCH: 0.55
+  CUSTOMER_ABANDON:
+    SEND_PAYMENT_LINK: {within_1h: 0.32, within_24h: 0.15, later: 0.06}
+    OFFER_METHOD_SWITCH: 0.12
+  CUSTOMER_INPUT:
+    SEND_PAYMENT_LINK: {with_guidance: 0.40, without_guidance: 0.25}
+    OFFER_METHOD_SWITCH: 0.35
+  INSTRUMENT_BLOCKED:
+    RETRY_CHARGE: 0.01
+    SEND_PAYMENT_LINK: 0.18
+    OFFER_METHOD_SWITCH: 0.45
+  MANDATE_ISSUE:
+    REQUEST_REAUTH: 0.40
+    SEND_PAYMENT_LINK: 0.05
+    OFFER_METHOD_SWITCH: 0.08
+    RETRY_CHARGE: 0.02
+  RISK_DECLINE:
+    RETRY_CHARGE: 0.0
+    SEND_PAYMENT_LINK: 0.0
+    OFFER_METHOD_SWITCH: 0.0
+    # Chasing a risk-declined payment is how a merchant earns a chargeback.
+    dispute_probability_per_attempt: 0.15
+  MERCHANT_CONFIG:
+    # Nothing aimed at the customer can work; only the merchant can fix this.
+    RETRY_CHARGE: 0.0
+    SEND_PAYMENT_LINK: 0.0
+    OFFER_METHOD_SWITCH: 0.0
+    merchant_fix_hours: [4, 48]
+    # Once the merchant repairs the configuration the original payment goes through on a quiet
+    # retry. Knowing to wait and re-attempt is the difference between routing a fault and
+    # recovering the sale.
+    retry_after_fix: 0.85
+  ABANDONED_CHECKOUT:
+    SEND_PAYMENT_LINK: {first: 0.20, second: 0.08, later: 0.02}
+  OVERDUE_RECEIVABLE:
+    SEND_REMINDER: {pay: 0.20, promise: 0.35, silence: 0.40, other: 0.05}
+    SEND_PAYMENT_LINK: 0.18
+    # A human who calls closes about half of what the agent escalates, after a couple of days.
+    human_close_probability: 0.50
+    human_close_delay_hours: 48
+  UNKNOWN:
+    RETRY_CHARGE: 0.20
+    SEND_PAYMENT_LINK: 0.15
+    OFFER_METHOD_SWITCH: 0.12
+
+modifiers:
+  liquidity: {tight: 0.5, ok: 1.0, good: 1.4}     # applied to funds-related recovery only
+  channel_match: 1.20
+  language_match: 1.15
+  tone_firm_pay: 0.90
+  attempt_decay: 0.60
+  # Contacting someone at night works badly and costs goodwill. This is what the naive baseline
+  # keeps paying for.
+  out_of_hours: {pay: 0.5, annoyance: 3.0, dispute: 0.02}
+  annoyance:
+    per_contact: 1.0
+    firm_multiplier: 2.0
+    complaint_threshold: 5.0
+    dispute_threshold: 8.0
+
+replies:
+  # Chance a nudged customer replies at all, and how quickly.
+  probability: 0.35
+  latency_hours_median: 2.0
+  latency_sigma: 0.9
+  waking_hours: {start: "08:00", end: "23:00"}

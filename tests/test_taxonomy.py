@@ -90,8 +90,50 @@ def test_high_value_recurring_is_tagged_for_reauthentication():
     assert "afa_required" not in tags
 
 
-def test_risk_decline_offers_no_recovery_action():
-    assert candidate_actions(RootCause.RISK_DECLINE) == ()
+def test_risk_decline_offers_no_recovery_action(make_case):
+    assert candidate_actions(make_case(root_cause=RootCause.RISK_DECLINE)) == ()
+
+
+def test_a_subscription_must_be_noticed_before_it_can_be_retried(make_case):
+    """Without the pre-debit notice the retry branch is dead, so the notice is itself a move."""
+
+    from wapsi.core.models import Method
+
+    unnotified = make_case(
+        scenario=Scenario.C, method=Method.upi_autopay, root_cause=RootCause.INSUFFICIENT_FUNDS
+    )
+    assert ActionType.SEND_PREDEBIT_NOTICE in candidate_actions(unnotified)
+
+    from tests.conftest import NOW
+
+    notified = make_case(
+        scenario=Scenario.C,
+        method=Method.upi_autopay,
+        root_cause=RootCause.INSUFFICIENT_FUNDS,
+        predebit_notice_at=NOW,
+    )
+    assert ActionType.SEND_PREDEBIT_NOTICE not in candidate_actions(notified)
+
+    # Above the AFA threshold no notice can make an auto-retry lawful, so none is offered.
+    afa = make_case(
+        scenario=Scenario.C,
+        method=Method.upi_autopay,
+        root_cause=RootCause.INSUFFICIENT_FUNDS,
+        amount_paise=1_800_000,
+        tags=["afa_required"],
+    )
+    assert ActionType.SEND_PREDEBIT_NOTICE not in candidate_actions(afa)
+
+
+def test_the_notice_is_valued_by_the_retry_it_unlocks(make_case):
+    from tests.conftest import NOW
+    from wapsi.core.models import Method
+
+    case = make_case(
+        scenario=Scenario.C, method=Method.upi_autopay, root_cause=RootCause.INSUFFICIENT_FUNDS
+    )
+    notice = prior(case, ActionType.SEND_PREDEBIT_NOTICE, NOW)
+    assert notice > 0
 
 
 def test_diagnosis_text_names_the_amount_and_reason(make_case):

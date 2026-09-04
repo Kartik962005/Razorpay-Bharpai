@@ -79,3 +79,69 @@ The test now exercises that instead, which is also the case a real merchant woul
 
 **Got out:** Noted for the CLI: reconfigure stdout to UTF-8 on start-up rather than avoiding the
 symbol. A recovery tool that cannot print ₹ is not finished.
+
+## 2026-09-04 — session 2: the simulator, and what it exposed
+
+The batch runner was built to measure the agent. It spent most of the session finding faults in
+it instead, which is the correct outcome for a measurement tool and the reason to build one
+before believing any number.
+
+**Broke:** The agent abandoned recoverable invoices seconds after its first reminder, closing them
+with "no permitted action is worth more than it costs". The rule doing it was R23, the
+per-customer weekly message cap.
+
+**Got out:** R23 is a *rolling* cap — it lifts as old messages age out — but it was reported to
+the planner with no expiry time, so the planner could not tell a temporary block from a permanent
+one and treated every one as terminal. The engine now returns the moment the cap lifts, and the
+planner waits instead. The same bug class hid in the snapping logic: satisfying a nudge gap could
+land the action outside the messaging window, and only one round of snapping was done, so the
+action was silently discarded. It now snaps repeatedly until the time is clean.
+
+**Broke:** The naive baseline recovered more money than the agent. Not a bug in the agent — a flaw
+in the policy. A single nudge cap of three was being applied to a ₹299 subscription over a
+fortnight and to a ₹5,00,000 B2B invoice over a month.
+
+**Got out:** Caps are now per scenario. Chasing an invoice five times in a month at three-day
+intervals is ordinary commercial practice; what the fair practices code forbids is harassment, not
+periodic invoicing. The agent overtook the baseline on net rupees and never stopped leading on
+compliance.
+
+**Broke:** Retrying into a bank outage looked like a fine idea, because transient failures were
+generated independently of the world's outage schedule. Most "transient" declines happened while
+the bank was perfectly healthy, so hammering worked and waiting looked pointless.
+
+**Got out:** A transient failure now *is* an outage: generating one creates the downtime window it
+happened inside. Recovery on that class went from 16% for the hammering baseline to 86% for the
+agent. A test asserts the invariant so it cannot drift back.
+
+**Broke:** The agent could never retry a subscription charge at all. Every attempt was refused
+under R13, the RBI pre-debit notification rule — correctly, because nothing in the system could
+ever send that notification.
+
+**Got out:** Added it as a first-class action. The interesting part was pricing it: a notice
+recovers nothing by itself, so its expected value is the value of the retry it unlocks a day
+later, discounted. That framing lets a purely regulatory step compete for the planner's attention
+on revenue terms. It is exempt from the nudge budget, since refusing to send it would make the
+mandate permanently uncollectable.
+
+**Broke:** Merchant-configuration failures recovered 0% under the agent and 10% under doing
+nothing — the agent was actively worse. It alerted the merchant and closed the case immediately.
+
+**Got out:** Three faults behind one number. The hard stop was reading "never chase the customer
+for the merchant's mistake" as "never touch this case again", when a silent retry chases nobody.
+The alert stayed a candidate action after firing, so the merchant was alerted three times in as
+many minutes. And the retry-spacing rule had been written to apply only to outage cases, so
+retries fired ninety seconds apart. With the gap applied to every retry, the alert fired once, and
+the agent's belief about *when* a merchant fixes their settings modelled as a ramp rather than a
+constant, the agent now recovers 100% of them — and the naive baseline's rapid-fire retries went
+from 1,549 recorded violations to 2,220, because the same rule now catches them too.
+
+**Broke:** Two cases the tests said were bugs were not. A ₹18,000 mandate failure was not denied
+under the AFA rule, and abandoned checkouts recovered nothing.
+
+**Got out:** In the first, the code was right and the test was wrong: a mandate failure never
+proposes a retry, so there was nothing for the rule to deny. It was rewritten against the case
+where the rule actually earns its keep — a large subscription failing for insufficient funds,
+where retrying looks reasonable and is still unlawful. In the second, reading the audit log showed
+the agent behaving exactly as designed; 0 of 6 was variance. The lesson both times was to read the
+trail before changing the code.

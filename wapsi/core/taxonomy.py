@@ -11,9 +11,10 @@ Sources:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from wapsi.core.models import ActionType, Case, ErrorTriple, Method, RootCause, Scenario
+from wapsi.core.timing import is_salary_window as is_salary_window_at
 
 # --------------------------------------------------------------------------------------------
 # reason -> root cause
@@ -185,6 +186,9 @@ CAUSE_GUIDANCE: dict[RootCause, str] = {
     RootCause.UNKNOWN: "the payment did not go through",
 }
 
+#: Text for the regulatory notice that precedes any mandate debit.
+PREDEBIT_GUIDANCE = "your auto-pay will be attempted again tomorrow"
+
 #: Actions worth considering per cause. The policy engine narrows this further; the planner
 #: never invents an action outside it.
 CANDIDATES: dict[RootCause, tuple[ActionType, ...]] = {
@@ -216,7 +220,7 @@ CANDIDATES: dict[RootCause, tuple[ActionType, ...]] = {
         ActionType.SEND_PAYMENT_LINK,
     ),
     RootCause.RISK_DECLINE: (),
-    RootCause.MERCHANT_CONFIG: (ActionType.ALERT_MERCHANT,),
+    RootCause.MERCHANT_CONFIG: (ActionType.ALERT_MERCHANT, ActionType.RETRY_CHARGE),
     RootCause.ABANDONED_CHECKOUT: (ActionType.SEND_PAYMENT_LINK,),
     RootCause.OVERDUE_RECEIVABLE: (ActionType.SEND_REMINDER, ActionType.SEND_PAYMENT_LINK),
     RootCause.UNKNOWN: (
@@ -264,7 +268,7 @@ BASE_PRIORS: dict[RootCause, dict[ActionType, float]] = {
         ActionType.SEND_PAYMENT_LINK: 0.15,
     },
     RootCause.RISK_DECLINE: {},
-    RootCause.MERCHANT_CONFIG: {ActionType.ALERT_MERCHANT: 0.85},
+    RootCause.MERCHANT_CONFIG: {ActionType.ALERT_MERCHANT: 0.85, ActionType.RETRY_CHARGE: 0.30},
     RootCause.ABANDONED_CHECKOUT: {ActionType.SEND_PAYMENT_LINK: 0.20},
     RootCause.OVERDUE_RECEIVABLE: {
         ActionType.SEND_REMINDER: 0.25,
@@ -334,8 +338,26 @@ def diagnose(case: Case) -> tuple[RootCause, list[str], str]:
     return cause, tags, text
 
 
-def candidate_actions(cause: RootCause) -> tuple[ActionType, ...]:
-    return CANDIDATES.get(cause, ())
+def candidate_actions(case: Case) -> tuple[ActionType, ...]:
+    """Actions worth considering for this case.
+
+    A mandate cannot legally be re-debited until the customer has been given 24 hours' notice,
+    so for subscriptions that notice is itself a move — and without it the retry branch is dead.
+    """
+
+    cause = case.root_cause or RootCause.UNKNOWN
+    actions = CANDIDATES.get(cause, ())
+    if case.merchant_alerted:
+        # Telling them twice adds nothing; what recovers the money now is a patient retry.
+        actions = tuple(a for a in actions if a is not ActionType.ALERT_MERCHANT)
+    if (
+        case.scenario is Scenario.C
+        and case.predebit_notice_at is None
+        and ActionType.RETRY_CHARGE in actions
+        and "afa_required" not in case.tags
+    ):
+        actions = (ActionType.SEND_PREDEBIT_NOTICE, *actions)
+    return actions
 
 
 def prior(
@@ -354,6 +376,18 @@ def prior(
     """
 
     cause = case.root_cause or RootCause.UNKNOWN
+
+    if action is ActionType.SEND_PREDEBIT_NOTICE:
+        # The notice recovers nothing by itself; it is worth exactly the retry it unlocks a day
+        # later, which is how the planner comes to see a compliance step as a revenue step.
+        return 0.9 * prior(
+            case,
+            ActionType.RETRY_CHARGE,
+            now + timedelta(hours=24),
+            salary_window=is_salary_window_at(now + timedelta(hours=24)),
+            downtime_active=False,
+        )
+
     base = BASE_PRIORS.get(cause, {}).get(action)
     if base is None:
         return 0.0
@@ -381,6 +415,12 @@ def prior(
         base = 0.30 if hours <= 1 else 0.15
     elif cause is RootCause.ABANDONED_CHECKOUT and action is ActionType.SEND_PAYMENT_LINK:
         base = 0.20 if case.attempts_of(action) == 0 else 0.08
+    elif cause is RootCause.MERCHANT_CONFIG and action is ActionType.RETRY_CHARGE:
+        # The retry only works once the merchant has fixed their settings, so its value tracks
+        # the chance they have got round to it. Modelled as a ramp from a few hours to a couple
+        # of days, which is what makes the planner wait a day instead of hammering for an hour.
+        fixed_by_now = min(1.0, max(0.0, (hours - 4) / 44))
+        base = 0.85 * fixed_by_now
 
     base *= ATTEMPT_DECAY ** case.attempts_of(action)
     base *= AGE_DECAY_PER_DAY ** max(0.0, case.age_days(now))

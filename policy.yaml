@@ -27,17 +27,34 @@ windows:
 # auto-retry; we ask the customer to re-authenticate.
 afa_threshold_paise: 1500000     # R14
 
-# Bank/PSP outages resolve on their own. Retry once the outage clears, not on a fixed clock.
+# Retry spacing. The gap and the daily ceiling apply to every re-attempt — charging the same
+# instrument twice in two minutes is the behaviour this system exists to replace. Waiting for an
+# outage to clear applies only where an outage is the diagnosis.
 transient_retry:                 # R16
   min_gap_minutes: 30
   max_per_24h: 3
   wait_for_downtime_resolved: true
 
 caps:
-  nudges_per_case: 3             # R20
-  nudge_gap_hours: 24            # R20
+  # Per scenario, because the right cadence differs enormously. Chasing a ₹299 subscription
+  # three times in a fortnight is persistent; chasing a ₹5,00,000 invoice three times in a month
+  # is negligent. What the fair practices code forbids is harassment, not periodic invoicing.
+  nudges_per_case:               # R20
+    payment_failed: 3
+    checkout_abandoned: 2
+    subscription_failed: 3
+    overdue_receivable: 5
+  nudge_gap_hours:               # R20
+    payment_failed: 24
+    checkout_abandoned: 24
+    subscription_failed: 24
+    overdue_receivable: 72
   first_abandon_nudge_delay_minutes: 30
-  actions_per_case: 5            # R21
+  actions_per_case:              # R21
+    payment_failed: 5
+    checkout_abandoned: 4
+    subscription_failed: 6
+    overdue_receivable: 8
   max_age_days:                  # R22
     payment_failed: 14
     checkout_abandoned: 14
@@ -54,10 +71,16 @@ economics:                       # R24
     voice_stub: 300
   retry_cost_paise: 5
   human_escalation_cost_paise: 5000
+  # A chargeback costs the merchant a handling fee on top of the lost sale. Chasing someone who
+  # has already been declined for risk, or messaging them at midnight until they complain to
+  # their bank, is not free — this is what makes that visible in the net figure.
+  dispute_cost_paise: 50000
 
 escalation:
-  high_value_paise: 2500000      # R30  with at least two failed nudges
-  high_value_min_nudges: 2       # R30
+  high_value_paise: 2500000      # R30
+  # Escalate only after the automated ladder has genuinely been tried. Handing a case to a human
+  # after two messages wastes the cheap attempts that were still available.
+  high_value_min_nudges: 3       # R30
   promises_broken: 2             # R31
   on_complaint: true             # R32
   unknown_after_failed_retries: 1  # R33

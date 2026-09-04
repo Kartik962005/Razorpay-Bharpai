@@ -51,6 +51,7 @@ class ActionType(str, Enum):
     RETRY_CHARGE = "RETRY_CHARGE"
     SEND_PAYMENT_LINK = "SEND_PAYMENT_LINK"
     SEND_REMINDER = "SEND_REMINDER"
+    SEND_PREDEBIT_NOTICE = "SEND_PREDEBIT_NOTICE"
     OFFER_METHOD_SWITCH = "OFFER_METHOD_SWITCH"
     REQUEST_REAUTH = "REQUEST_REAUTH"
     ESCALATE_HUMAN = "ESCALATE_HUMAN"
@@ -66,8 +67,14 @@ CONTACT_ACTIONS: frozenset[ActionType] = frozenset(
         ActionType.SEND_REMINDER,
         ActionType.OFFER_METHOD_SWITCH,
         ActionType.REQUEST_REAUTH,
+        ActionType.SEND_PREDEBIT_NOTICE,
     }
 )
+
+#: A pre-debit notification is a regulatory prerequisite, not a dunning message. It is held to
+#: the messaging windows and the per-customer volume cap, but it does not spend the case's nudge
+#: budget: refusing to send it would simply make the mandate unchargeable.
+NOTICE_ACTIONS: frozenset[ActionType] = frozenset({ActionType.SEND_PREDEBIT_NOTICE})
 
 
 class Channel(str, Enum):
