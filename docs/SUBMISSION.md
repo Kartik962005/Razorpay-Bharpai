@@ -53,7 +53,10 @@ assumption ±30% and, separately, stripping every penalty for careless recovery.
 
 ### What broke, and how you got out
 
-*(~300 words. The full log is `docs/BUILD_LOG.md`; this is the one worth telling.)*
+*(~320 words. The full log is `docs/BUILD_LOG.md`. Two candidates below — use the first; keep the
+second for the panel, or swap them if you would rather lead with the safety bug.)*
+
+**Option A — the bug that shaped the design.**
 
 The agent kept abandoning invoices it should have recovered. It would send one reminder, then a
 second later close the case with "no permitted action is worth more than it costs" — on a ₹3,130
@@ -69,12 +72,22 @@ future is a dead end, so it gave up on the case entirely.
 The fix was to make every temporary denial carry the moment it lifts. Once it did, the planner
 waited instead of quitting, and the same bug class turned up immediately in a second place: the
 planner snapped a blocked action forward only once, so waiting out a nudge gap could land it
-outside the messaging window and it would be silently discarded. It now snaps repeatedly until the
-time is clean.
+outside the messaging window and be silently discarded. It now snaps repeatedly until the time is
+clean.
 
-What it cost me was about two hours, and what it taught me was worth more than the two hours. A
-policy engine that only answers "no" is not enough for anything that has to plan; it has to answer
-"not until". I went back through all 41 rules and separated the genuinely permanent bars — a
-blocked instrument, a spent budget, an opt-out — from the temporary ones, and made the temporary
-ones say when. That distinction is now the thing the planner is actually built around, and it came
-out of a bug rather than a design session.
+What it cost me was about two hours, and what it taught me was worth more. A policy engine that
+only answers "no" is not enough for anything that plans; it has to answer "not until". I went back
+through all 41 rules and separated the genuinely permanent bars — a blocked instrument, a spent
+budget, an opt-out — from the temporary ones, and made the temporary ones say when. That
+distinction is now what the planner is built around, and it came out of a bug rather than a design
+session.
+
+**Option B — the one I would want to be told about.** The system's loudest promise is *never chase
+someone who has already paid*. On the live path it could not keep that promise: a case born from a
+failed payment carries an order id, and the idempotency check looked only at payment links,
+invoices and subscriptions. If the customer went back and paid the original link, the order settled
+and the agent kept chasing. The batch would never have caught it — the simulated gateway answers
+from the case object itself, so it agreed with whatever the agent believed. Only reading the real
+Razorpay ids in live state did. Fixed by checking the order, by status and by `amount_paid`, since
+partial settlement is reported as an amount rather than a status. The lesson is that a simulation
+can only test the questions you thought to ask it.

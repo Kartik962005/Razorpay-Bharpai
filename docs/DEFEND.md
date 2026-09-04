@@ -137,3 +137,24 @@ the time is the design, not an accident.
   defaults ₹15.4L — ranking unchanged
 - 51 false nudges, counted against ourselves
 - 169 tests, no network; CI on Linux and Windows, no keys
+
+### "What's the worst bug you shipped and caught?"
+
+The idempotency guard — the check that stops the agent chasing someone who has already paid — did
+not work on the live path. A case created from a failed payment carries an order id and a payment
+id; `refresh()` looked only at payment links, invoices and subscriptions. So if a customer went
+back and paid the original link, the order settled and Wapsi carried on messaging them.
+
+Two things about it are worth saying. First, it is the failure the whole project claims to
+prevent, so finding it in my own code is the most useful thing that happened during the build.
+Second, the batch could never have caught it: the simulated gateway answers from the case object,
+so it always agreed with whatever the agent already believed. A simulation only tests the
+questions you thought to ask it. I found this by reading the real Razorpay ids in live state at
+half past one in the morning, not by running anything.
+
+### "Half your live cases are waiting. Is it stuck?"
+
+No — it is 01:36 and the messaging window is shut. The agent has diagnosed all of them and
+scheduled the first contact for 10:00, and the audit log shows the rule that stopped it and the
+time it defers to. That is the system working. If you want to see it act, the recording is made
+inside the window.
