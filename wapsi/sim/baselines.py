@@ -79,6 +79,75 @@ class DoNothingPlanner:
         return _wait(case, deadline, "no recovery attempted")
 
 
+#: Razorpay's own reminder cadence for links and invoices when `reminder_enable` is on: a few
+#: notifications at fixed offsets, sent in daytime batches, on both channels the customer gave.
+PLATFORM_REMINDERS = (timedelta(days=1), timedelta(days=3), timedelta(days=6))
+PLATFORM_SEND_HOUR = 11
+
+
+class PlatformPlanner:
+    """What the merchant gets by using Razorpay's defaults and nothing else.
+
+    This is the fair comparison, and the one a reviewer should demand. The naive baseline is
+    what untuned merchant automation does; this is what the platform does unprompted — the
+    subscription retry ladder, and `reminder_enable` on links and invoices. It is cause-blind but
+    it is not reckless: reminders go out in daytime batches, one-off payments are never retried,
+    and nothing is sent after the money arrives. Its actions are tagged as the platform's so its
+    rule verdicts are recorded but not held against any merchant policy.
+    """
+
+    name = "platform"
+
+    def __init__(self, policy: PolicyEngine):
+        self.policy = policy
+
+    def plan(self, case: Case, now: datetime, ctx: PolicyContext) -> Decision:
+        from wapsi.core.models import Scenario
+
+        deadline = case.created_at + timedelta(days=self.policy.max_age_days(case))
+
+        if case.scenario is Scenario.C and case.retries < len(PLATFORM_LADDER):
+            due = case.created_at + PLATFORM_LADDER[case.retries]
+            if now >= due:
+                action = Action(
+                    case_id=case.id,
+                    type=ActionType.RETRY_CHARGE,
+                    scheduled_at=now,
+                    params={"platform": True},
+                )
+                action.cost_paise = self.policy.cost_of(action)
+                return Decision(action, [], f"platform retry ladder (T+{case.retries + 1})")
+            return _wait(case, due, "waiting for the platform's next scheduled retry")
+
+        if case.nudges < len(PLATFORM_REMINDERS):
+            due = case.created_at + PLATFORM_REMINDERS[case.nudges]
+            # Notifications go out in a daytime batch, whatever time the link was created.
+            due = due.replace(hour=PLATFORM_SEND_HOUR, minute=0, second=0, microsecond=0)
+            if due <= case.created_at:
+                due += timedelta(days=1)
+            if now >= due:
+                channel = Channel.email if case.scenario is Scenario.D else Channel.sms
+                action = Action(
+                    case_id=case.id,
+                    type=ActionType.SEND_REMINDER,
+                    scheduled_at=now,
+                    params={
+                        "channel": channel.value,
+                        "tone": Tone.helpful.value,
+                        "language": Language.en.value,
+                        "generic": True,
+                        "platform": True,
+                    },
+                )
+                action.cost_paise = self.policy.cost_of(action)
+                return Decision(action, [], f"platform reminder {case.nudges + 1} of 3")
+            return _wait(case, due, "next platform reminder")
+
+        if now >= deadline:
+            return _close(case, now, Outcome.gave_up, "platform reminders exhausted")
+        return _wait(case, deadline, "platform reminders exhausted")
+
+
 class NaivePlanner:
     """Cause-blind, clock-blind, consent-blind. Common, and expensive."""
 

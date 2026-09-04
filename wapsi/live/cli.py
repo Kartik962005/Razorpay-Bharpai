@@ -156,7 +156,8 @@ def watch(
 
         model = LLM()
 
-    audit = AuditLog(AUDIT_PATH)
+    # Append: the webhook endpoint may already have written cases into this log.
+    audit = AuditLog(AUDIT_PATH, truncate=False)
     poller = LivePoller(client, PolicyEngine.load(), llm=model, audit=audit)
 
     console.print(

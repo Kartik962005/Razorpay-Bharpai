@@ -19,13 +19,20 @@ from wapsi.core.models import AuditEntry
 class AuditLog:
     """Holds entries in memory and, optionally, mirrors them to a JSONL file."""
 
-    def __init__(self, path: Path | str | None = None):
+    def __init__(self, path: Path | str | None = None, *, truncate: bool = True):
         self.path = Path(path) if path else None
         self._entries: list[AuditEntry] = []
         self._seq: dict[str, int] = defaultdict(int)
         if self.path:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text("", encoding="utf-8")
+            if truncate or not self.path.exists():
+                self.path.write_text("", encoding="utf-8")
+            else:
+                # Several processes may share the live log: the poller and the webhook
+                # endpoint both append to it, and neither may wipe the other's history.
+                for entry in self.read(self.path):
+                    self._entries.append(entry)
+                    self._seq[entry.case_id] = max(self._seq[entry.case_id], entry.seq)
 
     def record(
         self,

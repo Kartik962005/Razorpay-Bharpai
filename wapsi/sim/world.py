@@ -26,6 +26,39 @@ def load_config(path: Path | str = CONFIG_PATH) -> dict[str, Any]:
         return yaml.safe_load(handle)
 
 
+#: Assumptions that flatter the compliant policy, turned down hard. If the ranking survives these,
+#: it does not depend on the simulation punishing bad behaviour as harshly as it does by default.
+HOSTILE_ASSUMPTIONS: dict[tuple[str, ...], Any] = {
+    # Contacting people at night barely bothers them and never triggers a dispute.
+    ("modifiers", "out_of_hours", "annoyance"): 1.0,
+    ("modifiers", "out_of_hours", "pay"): 0.9,
+    ("modifiers", "out_of_hours", "dispute"): 0.0,
+    # People are twice as patient before complaining or disputing.
+    ("modifiers", "annoyance", "complaint_threshold"): 10.0,
+    ("modifiers", "annoyance", "dispute_threshold"): 16.0,
+    # And take far more messages before opting out.
+    ("customers", "opt_out_threshold"): {4: 0.10, 7: 0.30, 12: 0.60},
+    # Hammering a risk decline never produces a chargeback.
+    ("behaviour", "RISK_DECLINE", "dispute_probability_per_attempt"): 0.0,
+    # Firm tone costs nothing.
+    ("modifiers", "tone_firm_pay"): 1.0,
+}
+
+
+def apply_overrides(config: dict[str, Any], overrides: dict[tuple[str, ...], Any]) -> dict[str, Any]:
+    """Return a copy of ``config`` with dotted-path overrides applied."""
+
+    import copy
+
+    result = copy.deepcopy(config)
+    for path, value in overrides.items():
+        node = result
+        for key in path[:-1]:
+            node = node.setdefault(key, {})
+        node[path[-1]] = value
+    return result
+
+
 def _parse_hhmm(value: str) -> tuple[int, int]:
     hour, minute = value.split(":")
     return int(hour), int(minute)

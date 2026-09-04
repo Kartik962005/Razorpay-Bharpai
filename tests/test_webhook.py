@@ -172,3 +172,53 @@ def test_health_reports_a_fingerprint_not_the_secret():
     body = client.get("/health").json()
     assert body["ok"]
     assert len(body["webhook_secret"]) in (8, 5)  # eight hex chars, or the word "unset"
+
+
+def test_a_verified_failure_becomes_a_case_the_poller_can_act_on(tmp_path, monkeypatch):
+    """The point of a webhook over polling: the case exists the moment Razorpay says so."""
+
+    from fastapi.testclient import TestClient
+
+    from wapsi.api import app as app_module
+    from wapsi.live import state
+
+    monkeypatch.setattr(state, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(state, "CASES_PATH", tmp_path / "cases.json")
+    monkeypatch.setattr(app_module, "RESULTS_DIR", tmp_path / "results")
+
+    app = app_module.create_app()
+    app.state.receiver = Receiver(SECRET)
+    client = TestClient(app)
+
+    body = json.dumps(payment_failed_payload()).encode()
+    headers = {"X-Razorpay-Signature": sign(body), "X-Razorpay-Event-Id": "evt_case"}
+    response = client.post("/webhooks/razorpay", content=body, headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["case_id"] == "live_pay_TESTFAILED001"
+    cases = state.load_cases()
+    assert "live_pay_TESTFAILED001" in cases
+    assert cases["live_pay_TESTFAILED001"].root_cause is not None
+
+    # A retried delivery must not create a second case.
+    headers["X-Razorpay-Event-Id"] = "evt_case_retry"
+    client.post("/webhooks/razorpay", content=body, headers=headers)
+    assert len(state.load_cases()) == 1
+
+
+def test_an_appending_audit_log_keeps_what_was_already_there(tmp_path):
+    from datetime import datetime
+
+    from wapsi.config import IST
+    from wapsi.core.audit import AuditLog
+
+    path = tmp_path / "audit.jsonl"
+    first = AuditLog(path)
+    first.record(ts=datetime.now(IST), case_id="c1", kind="observation", actor="system", summary="one")
+
+    second = AuditLog(path, truncate=False)
+    second.record(ts=datetime.now(IST), case_id="c1", kind="action", actor="planner", summary="two")
+
+    entries = AuditLog.read(path)
+    assert [e.summary for e in entries] == ["one", "two"]
+    assert [e.seq for e in entries] == [1, 2]

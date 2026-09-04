@@ -7,18 +7,17 @@ conflicts with reality (an API behaves differently, a rate limit bites), fix it,
 
 ## 0. Ground rules
 
-- Repo: `https://github.com/Kartik962005/Razorpay-Wapsi-` (branch `main`, solo). Author for every
-  commit: `Kartik Gupta <kartik962005gupta@gmail.com>` (already set in local git config).
-- **No AI-assistant attribution anywhere**: no co-author trailers, no tool names in README, code
-  comments, commit messages, or the video. The LLM inside the product is "any OpenAI-compatible
-  model"; the model id lives only in `.env`.
+- Repo: `https://github.com/Kartik962005/Razorpay-Wapsi-` (branch `main`, solo).
+- The language model inside the product is any OpenAI-compatible endpoint. The model id lives
+  only in `.env`, never in code, because model catalogues rotate (see BUILD_LOG).
 - Secrets only in `.env` (gitignored). `.env.example` has placeholders only. Before every push:
   `git diff --cached --name-only | grep -x .env` must print nothing.
 - Commit small and often, imperative mood ("Add policy engine", "Fix NPCI window check").
   Push at the end of every session.
-- Windows / Git Bash quirks: the venv interpreter is `.venv/Scripts/python.exe`; long file
-  writes go through the editor's file-write tool (the shell heredoc breaks past ~8 KB); use
-  `zoneinfo.ZoneInfo("Asia/Kolkata")` explicitly — never rely on the `TZ` env var on Windows.
+- Windows quirks: the venv interpreter is `.venv/Scripts/python.exe`; Git Bash heredocs corrupt
+  files past ~8 KB and eat backslash escapes, so write source files with an editor rather than
+  the shell; use `zoneinfo.ZoneInfo("Asia/Kolkata")` explicitly — never rely on the `TZ` env var,
+  which Windows ignores.
 - Amounts are integers in **paise** everywhere (Razorpay convention); format as ₹ only at the edges.
 - Every decision the system makes must be reconstructible from the audit log alone.
 

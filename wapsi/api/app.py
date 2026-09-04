@@ -23,6 +23,56 @@ from wapsi.live.webhook import Receiver
 STATIC = Path(__file__).resolve().parent / "static"
 
 
+def _open_case_from_webhook(payload: dict[str, Any]) -> str | None:
+    """Turn a verified ``payment.failed`` into a persisted, diagnosed case for the poller."""
+
+    from wapsi.core.taxonomy import diagnose
+    from wapsi.live.poller import case_from_payment
+    from wapsi.live.webhook import normalise
+
+    event = normalise(payload)
+    if not event or not event.get("payment"):
+        return None
+
+    cases = state.load_cases()
+    case = case_from_payment(event["payment"])
+    if case.id in cases:
+        return None
+
+    cause, tags, text = diagnose(case)
+    case.root_cause, case.diagnosis_text = cause, text
+    case.tags.extend(t for t in tags if t not in case.tags)
+    cases[case.id] = case
+    state.save_cases(cases)
+
+    audit = AuditLog(RESULTS_DIR.parent / ".live" / "audit.jsonl", truncate=False)
+    audit.record(
+        ts=case.created_at,
+        case_id=case.id,
+        kind="observation",
+        actor="adapter",
+        summary=(
+            f"delivered by webhook: {case.scenario.value}, ₹{case.amount_inr:,.0f} "
+            f"on {case.method.value}"
+        ),
+        payload={
+            "error_reason": case.error.reason if case.error else None,
+            "error_source": case.error.source if case.error else None,
+            "error_step": case.error.step if case.error else None,
+            "via": "webhook",
+        },
+    )
+    audit.record(
+        ts=case.created_at,
+        case_id=case.id,
+        kind="diagnosis",
+        actor="system",
+        summary=text,
+        payload={"root_cause": cause.value},
+    )
+    return case.id
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="Wapsi", docs_url=None, redoc_url=None)
@@ -138,6 +188,12 @@ def create_app() -> FastAPI:
         app.state.events.append(
             {"at": datetime.now(IST).isoformat(), "status": status, **result}
         )
+        if status == 200 and result.get("kind") == "failure":
+            # This is what a webhook buys over polling: the case exists the moment Razorpay
+            # tells us, and the next poll acts on it instead of first having to find it.
+            created = _open_case_from_webhook(json.loads(body))
+            if created:
+                result["case_id"] = created
         return JSONResponse(result, status_code=status)
 
     return app

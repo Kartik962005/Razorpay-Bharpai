@@ -27,7 +27,7 @@ from wapsi.core.replies import interpret
 from wapsi.core.policy import PolicyContext, PolicyEngine
 from wapsi.core.taxonomy import diagnose
 from wapsi.core.timing import is_salary_window
-from wapsi.sim.baselines import DoNothingPlanner, NaivePlanner
+from wapsi.sim.baselines import DoNothingPlanner, NaivePlanner, PlatformPlanner
 from wapsi.sim.customer import CustomerModel, Population, Reaction
 from wapsi.sim.world import World
 
@@ -41,6 +41,7 @@ MAX_CONSECUTIVE_WAITS = 10
 
 PLANNERS: dict[str, Any] = {
     "do_nothing": DoNothingPlanner,
+    "platform": PlatformPlanner,
     "naive": NaivePlanner,
     "rules": RulesPlanner,
 }

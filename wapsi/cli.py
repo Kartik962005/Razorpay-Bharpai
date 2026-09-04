@@ -237,6 +237,52 @@ def _model_section(results: dict) -> list[str]:
                 f"- budget exhausted mid-run: {bool(stats.get('budget_exhausted'))}",
                 "",
             ]
+        lines += _writing_section(name, result)
+    return lines
+
+
+#: Roman-script Hindi function words. Three or more in a message is Hinglish; fewer is English
+#: with a Hindi sign-off, which is the failure mode this metric exists to catch.
+_HINDI = __import__("re").compile(
+    r"\b(ka|ki|ke|nahi|hua|karein|kar|abhi|aapka|aapke|hai|bhejein|liye|se|par|ho|gaya|"
+    r"dijiye|kripya|yahan|kyunki|dobara|kal|aaj|paise|paisa)\b",
+    __import__("re").IGNORECASE,
+)
+
+
+def _writing_section(name: str, result) -> list[str]:
+    """How much the model wrote, how often the guardrails refused it, and whether Hinglish was
+    actually Hinglish. Measured on the messages that were sent, not on a hand-picked sample."""
+
+    from wapsi.core.models import Language
+
+    sent = list(result.messenger.sent)
+    if not sent:
+        return []
+    written = [m for m in sent if m.llm_written]
+    if not written:
+        return []
+    rejected = sum(
+        1
+        for e in result.audit.entries
+        if e.kind == "verdict" and "R40" in e.rule_ids
+    )
+    hinglish_asked = [m for m in written if m.language is Language.hinglish]
+    hinglish_real = sum(1 for m in hinglish_asked if len(_HINDI.findall(m.text)) >= 3)
+    lines = [
+        f"## Writing messages — {name}",
+        "",
+        f"- {len(sent)} messages sent; {len(written)} written by the model, "
+        f"{len(sent) - len(written)} from templates",
+        f"- guardrail rejections (R40), replaced by a template: {rejected}",
+    ]
+    if hinglish_asked:
+        lines.append(
+            f"- asked for Hinglish {len(hinglish_asked)} times; genuinely Hinglish "
+            f"{hinglish_real} ({hinglish_real / len(hinglish_asked):.0%}) — the rest were English "
+            "with a Hindi sign-off"
+        )
+    lines.append("")
     return lines
 
 
@@ -260,54 +306,79 @@ def sensitivity(
     from wapsi.sim.runner import Runner
     from wapsi.sim.world import World, load_config
 
-    policy = PolicyEngine.load()
+    from wapsi.sim.world import HOSTILE_ASSUMPTIONS, apply_overrides
+
     names = [p.strip() for p in policies.split(",") if p.strip()]
     scales = [float(f) for f in factors.split(",") if f.strip()]
-
-    grid: dict[float, dict[str, int]] = {}
-    orders: dict[float, list[str]] = {}
-    for scale in scales:
-        console.print(f"[dim]behaviour scale {scale}...[/dim]")
-        world = World(config=load_config(), seed=seed)
-        world.behaviour_scale = scale
-        cases, population = generate(world, n=n)
-        runner = Runner(world=world, cases=cases, population=population, policy=policy)
-        grid[scale] = {name: compute(runner.run(name)).net_paise for name in names}
-        orders[scale] = sorted(names, key=lambda p: grid[scale][p], reverse=True)
-
-    baseline_order = orders[scales[0]]
-    stable = all(orders[s] == baseline_order for s in scales)
-
-    rows = [
-        {"policy": name, **{f"x{s}": metrics_mod.rupees(grid[s][name]) for s in scales}}
-        for name in names
-    ]
-    columns = [("policy", "policy")] + [(f"x{s}", f"priors x{s}") for s in scales]
-
-    console.print(_render_table(rows, columns, "net recovered under scaled behaviour priors"))
-    console.print(
-        f"\n[{'green' if stable else 'yellow'}]ranking "
-        f"{'holds' if stable else 'CHANGES'} across the range[/]"
-    )
-
     body = [
         "# Sensitivity",
         "",
-        f"{n} cases, seed {seed}. Every behaviour prior in `sim/config.yaml` multiplied by each "
-        "factor, and the whole batch re-run. Net rupees recovered:",
-        "",
-        metrics_mod.markdown_table(rows, columns),
-        "",
-        (
-            "The ranking of the policies is unchanged across the range, so the conclusion does "
-            "not rest on the priors being accurate."
-            if stable
-            else "**The ranking changes across the range.** The conclusion is sensitive to the "
-            "priors, and the ordering below should be read as provisional: "
-            + "; ".join(f"at x{s}: {' > '.join(orders[s])}" for s in scales)
-        ),
+        f"{n} cases, seed {seed}. Two questions, each answered by re-running the whole batch.",
         "",
     ]
+
+    # 1. Uniform scaling: are the published priors merely wrong by a constant?
+    # 2. Hostile assumptions: are the penalties for bad behaviour what makes the compliant
+    #    policy win? Every penalty that flatters it is turned down hard, and the dispute fee
+    #    is set to zero. If the ranking holds here, it holds for a reason other than the
+    #    simulation being harsh on the baselines.
+    for label, overrides, dispute_fee in (
+        ("default assumptions", {}, None),
+        ("hostile assumptions", HOSTILE_ASSUMPTIONS, 0),
+    ):
+        grid: dict[float, dict[str, int]] = {}
+        orders: dict[float, list[str]] = {}
+        for scale in scales:
+            console.print(f"[dim]{label}, behaviour scale {scale}...[/dim]")
+            policy = PolicyEngine.load()
+            if dispute_fee is not None:
+                policy.economics["dispute_cost_paise"] = dispute_fee
+            world = World(config=apply_overrides(load_config(), overrides), seed=seed)
+            world.behaviour_scale = scale
+            cases, population = generate(world, n=n)
+            runner = Runner(world=world, cases=cases, population=population, policy=policy)
+            grid[scale] = {name: compute(runner.run(name)).net_paise for name in names}
+            orders[scale] = sorted(names, key=lambda p: grid[scale][p], reverse=True)
+
+        reference = orders[scales[0]]
+        stable = all(orders[s] == reference for s in scales)
+        rows = [
+            {"policy": name, **{f"x{s}": metrics_mod.rupees(grid[s][name]) for s in scales}}
+            for name in names
+        ]
+        columns = [("policy", "policy")] + [(f"x{s}", f"priors x{s}") for s in scales]
+
+        console.print(_render_table(rows, columns, f"net recovered — {label}"))
+        console.print(
+            f"[{'green' if stable else 'yellow'}]ranking "
+            f"{'holds' if stable else 'CHANGES'} across the range "
+            f"({' > '.join(reference)})[/]\n"
+        )
+
+        body += [
+            f"## {label}",
+            "",
+            (
+                "Every behaviour prior in `sim/config.yaml` multiplied by each factor."
+                if not overrides
+                else "As above, but with every assumption that punishes careless recovery turned "
+                "down: night-time contact barely annoys anyone and never triggers a dispute, "
+                "customers tolerate twice as many messages before complaining or opting out, "
+                "retrying a risk-declined payment never causes a chargeback, and the chargeback "
+                "fee is zero."
+            ),
+            "",
+            metrics_mod.markdown_table(rows, columns),
+            "",
+            (
+                f"Ranking unchanged across the range: {' > '.join(reference)}."
+                if stable
+                else "**Ranking changes across the range:** "
+                + "; ".join(f"x{s}: {' > '.join(orders[s])}" for s in scales)
+            ),
+            "",
+        ]
+
     out.mkdir(parents=True, exist_ok=True)
     (out / "sensitivity.md").write_text("\n".join(body), encoding="utf-8")
     console.print(f"[green]wrote[/green] {out / 'sensitivity.md'}")
