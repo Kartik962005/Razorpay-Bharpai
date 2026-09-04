@@ -247,9 +247,12 @@ net ₹, violations, per-cause, sensitivity (60 s) · 4:15 what broke and how we
   run, "where the agent lost" table, false-nudge cost reported.
 - LLM provider outage during demo → template fallback is always on.
 
-## 14. Open decisions (need the builder's call)
+## 14. Decisions (resolved 2026-09-04)
 
-1. Project name: **Wapsi** / Recoup / something else?
-2. LLM provider for the product (OpenAI / Gemini / Groq / other OpenAI-compatible)?
-3. Dashboard: minimal static page (recommended) vs Streamlit?
-4. Hinglish messaging: include (recommended, cheap) or English-only?
+1. Project name: **Wapsi**. Repo: https://github.com/Kartik962005/Razorpay-Wapsi-
+2. LLM provider: **Groq** via the OpenAI-compatible endpoint (`LLM_BASE_URL=https://api.groq.com/openai/v1`); model ids only in `.env`.
+3. Dashboard: minimal static HTML page served by FastAPI.
+4. Messaging: English + Hinglish.
+5. Ingestion: poller by default; webhook endpoint optional via a cloudflared quick tunnel.
+
+The executable plan is `docs/BUILD_SPEC.md`.
