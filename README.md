@@ -53,9 +53,13 @@ Recovery rate by root cause — this is where cause-awareness shows up:
 Retrying into an outage is worse than doing nothing — the naive policy proves it, scoring 16%
 against a 42% baseline on exactly the class of failure that retrying is supposed to fix.
 
-**Sensitivity.** Every behaviour prior scaled by 0.7 and 1.3 and the whole batch re-run: the
-ranking of the policies is unchanged. The conclusion does not rest on the priors being accurate.
-See [`results/sensitivity.md`](results/sensitivity.md).
+**Sensitivity, two ways.** First, every behaviour prior scaled by 0.7 and 1.3: the ranking is
+unchanged. Second — the test a sceptical reviewer should demand — every assumption that *flatters*
+the compliant policy turned down hard: night-time messages barely annoy anyone and never trigger a
+dispute, customers tolerate twice as many messages before opting out, retrying a risk-declined
+payment never causes a chargeback, and the chargeback fee is zero. **Wapsi still wins: ₹20.1L
+against ₹18.0L for the naive policy and ₹15.4L for Razorpay's own defaults.** The result does not
+depend on the simulation punishing carelessness. See [`results/sensitivity.md`](results/sensitivity.md).
 
 ---
 

@@ -287,3 +287,37 @@ the single character `1` is worse than no diagnostic tool.
 **Cleanup:** `scripts/check_keys.py` and `scripts/webhook_probe.py` were scaffolding written before
 the package existed; `wapsi live doctor` and `wapsi serve` do both jobs properly now, so they are
 gone. What remains in `scripts/` is documented.
+
+## 2026-09-05 — reviewing it the way a committee would
+
+Sat down with the finished build and read it as a sceptical Razorpay reviewer with a thousand
+other submissions to get through. Four things did not survive that reading.
+
+**"Your naive baseline is a strawman."** Fair. Retrying three times in fifteen minutes and then
+texting at midnight is what bad automation does, but nobody is choosing between Wapsi and that.
+They are choosing between Wapsi and Razorpay's own defaults — the subscription retry ladder and
+`reminder_enable` on links and invoices. Added a `platform` policy that does exactly and only that,
+with reminders in daytime batches and no retries of one-off payments, and tagged its actions as
+the platform's so it is not scored for rule breaks. It nets ₹14.5L on the batch. Wapsi nets ₹17.6L.
+That ₹3L gap is the honest claim; the ₹13L gap against doing nothing is true but less interesting.
+
+**"Your sensitivity only scales everything uniformly. Turn down the penalties and naive wins."**
+Ran exactly that: night contact barely annoys, opt-outs take twice as many messages, hammering a
+risk decline never causes a chargeback, chargebacks are free. Wapsi still leads — ₹20.1L to naive's
+₹18.0L — so the ranking does not depend on the simulation being harsh. This was the single most
+valuable hour of the review, because I did not know the answer before running it.
+
+**"You say webhooks are supported. Your endpoint appends events to a list."** Also fair. The
+signature was verified and the event was logged, and nothing happened. A verified `payment.failed`
+now creates, diagnoses and persists the case immediately, so the next poll acts on it rather than
+first having to discover it. That required the live audit log to be appendable from two processes,
+which it had not been: the constructor truncated the file.
+
+**"The model wrote 4% of the messages."** 38 of 897, because the call budget went mostly to an
+advisor that was measured to add nothing. Reallocated: advisor sampling cut to 5%, budget raised,
+and the report now states the model-written share, the guardrail rejection count and the Hinglish
+adherence rate for every run — so the figure is a measurement in the open rather than something a
+reviewer has to count in the audit log.
+
+Also added: continuous integration on Linux and Windows with no secrets, so the keyless claim is
+checked on every push rather than once by hand.
