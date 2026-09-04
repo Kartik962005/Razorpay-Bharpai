@@ -426,6 +426,12 @@ into the same event objects the poller emits. Return 200 fast; process async.
 5. Test: make a failed payment; the dashboard's webhook page shows delivery status; `wapsi serve`
    logs the event. Note: quick-tunnel URLs change every run — update the webhook URL each time.
 
+Account facts (checked 2026-09-04): the webhook page offers `payment.*`, `order.*`, `invoice.*`,
+`refund.*`, `payment_link.*`, `payment.downtime.*` and `payment.dispute.*` events but **no
+`subscription.*` events** until Subscriptions is activated in the dashboard. Do not depend on
+them: scenario C in live mode is driven by the poller (`subscription.fetch`), and webhooks only
+add latency improvements for A/B/D. The webhook secret is set (`RAZORPAY_WEBHOOK_SECRET`).
+
 ## 13. Tests (`tests/`, pytest)
 
 - `test_taxonomy.py`: every reason in the mapping resolves; unmapped + source=business →
