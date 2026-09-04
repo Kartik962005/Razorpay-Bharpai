@@ -144,7 +144,7 @@ def test_an_unknown_event_normalises_to_nothing():
     assert normalise({"event": "engage.rewards.enabled", "payload": {}}) is None
 
 
-def test_the_endpoint_accepts_both_paths():
+def test_the_endpoint_accepts_both_paths(isolated_state):
     """A pasted webhook URL can lose its path. That silently dropped every delivery once."""
 
     from fastapi.testclient import TestClient
@@ -174,17 +174,13 @@ def test_health_reports_a_fingerprint_not_the_secret():
     assert len(body["webhook_secret"]) in (8, 5)  # eight hex chars, or the word "unset"
 
 
-def test_a_verified_failure_becomes_a_case_the_poller_can_act_on(tmp_path, monkeypatch):
+def test_a_verified_failure_becomes_a_case_the_poller_can_act_on(isolated_state):
     """The point of a webhook over polling: the case exists the moment Razorpay says so."""
 
     from fastapi.testclient import TestClient
 
     from wapsi.api import app as app_module
     from wapsi.live import state
-
-    monkeypatch.setattr(state, "STATE_DIR", tmp_path)
-    monkeypatch.setattr(state, "CASES_PATH", tmp_path / "cases.json")
-    monkeypatch.setattr(app_module, "RESULTS_DIR", tmp_path / "results")
 
     app = app_module.create_app()
     app.state.receiver = Receiver(SECRET)

@@ -331,3 +331,40 @@ right shape is the opposite — space calls out at just under the limit so they 
 once, and otherwise fall back to a template. A throttle of 2.1 seconds between calls made the
 runtime predictable instead of hostage to the provider's mood, and turned failed calls from a
 runtime problem into the reported statistic they should have been all along.
+
+## 2026-09-05 — two bugs found by reading the live state at 01:36
+
+Went to close the live loop and found the messaging window shut, which is correct: at 01:36 the
+agent refuses to contact anyone until 10:00. Read the four open cases while waiting, and two of
+them should not have looked the way they did.
+
+**Broke:** One of the live cases was `live_pay_TESTFAILED001` — an id that exists only in
+`tests/test_webhook.py`. A test had written into the real `.live/cases.json`.
+
+**Got out:** When the webhook endpoint gained the ability to create cases, an older test that
+posted a `payment.failed` payload to it started persisting one, and that test had no isolation
+because when it was written the endpoint only logged. Added an `isolated_state` fixture that
+redirects every live path at a temporary directory, applied it to both endpoint tests, and
+verified by fingerprinting `.live/cases.json` before and after a full run. The lesson is narrow
+but sharp: when a handler gains a side effect, every existing test of that handler silently gains
+it too.
+
+**Broke, and this one matters:** `refresh()` — the idempotency guard, the single most important
+check in the system — could never return `paid` for a case born from a failed payment. Such a case
+carries an order id and a payment id, and `refresh` looked only at payment links, invoices and
+subscriptions. If the customer went back and paid the original link, or simply checked out again,
+the order would settle and Wapsi would keep chasing them.
+
+**Got out:** The order is the authoritative unit of payment for a one-off purchase, so it is now
+checked too — by status and by `amount_paid`, since Razorpay reports partial settlement as an
+amount rather than a status. Three tests pin it, including the one that describes the failure in
+its own name. It is worth saying plainly what this was: the system's loudest promise is *never
+chase someone who has already paid*, and on the live path it could not keep that promise. Nothing
+in the batch would ever have caught it, because the simulated gateway answers from the case object
+itself. Only reading the real ids did.
+
+**Cleanup in the same pass:** the 227-line event loop in `runner.run` became a dispatch method and
+five named steps — plan-and-act, wait, record-proposal, await-customer, await-human. Re-ran the
+whole batch and confirmed every policy's recovered count, net rupees and violation count are
+byte-identical to before, which is the only acceptable outcome for a refactor of something that
+produces the headline numbers.

@@ -59,10 +59,20 @@ class LiveGateway:
     # -- gateway interface --------------------------------------------------------------------
 
     def refresh(self, case: Case, now: datetime) -> dict[str, Any]:
-        """Has this money arrived? Checks the recovery link first, then the original entity."""
+        """Has this money arrived, by *any* route?
+
+        The order is checked as well as the links, and this matters more than it looks. A case
+        born from a failed payment carries an order id but no link id; if the customer then pays
+        the original link, or retries checkout themselves, the order settles and no link we know
+        about changes. Checking only our own recovery link would leave us chasing someone who has
+        already paid — the exact failure this system exists to prevent.
+        """
 
         checks = [
+            # Newest first: a link the agent created supersedes whatever failed originally.
             ("payment_link", case.razorpay.get("recovery_link_id")),
+            # The order is the authoritative unit of payment for a one-off purchase.
+            ("order", case.razorpay.get("order_id")),
             ("payment_link", case.razorpay.get("payment_link_id")),
             ("invoice", case.razorpay.get("invoice_id")),
             ("subscription", case.razorpay.get("subscription_id")),
@@ -76,6 +86,10 @@ class LiveGateway:
             status = str(entity.get("status", "")).lower()
             if status in PAID_STATUSES:
                 return {"paid": True, "status": status, "entity": entity_id}
+            # An order that has been paid partially or fully reports it as an amount, not only
+            # as a status, depending on how it was created.
+            if resource == "order" and entity.get("amount_paid"):
+                return {"paid": True, "status": "paid", "entity": entity_id}
         return {"paid": False, "status": "unpaid"}
 
     def create_payment_link(

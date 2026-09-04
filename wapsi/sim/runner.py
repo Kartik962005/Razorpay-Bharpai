@@ -48,6 +48,26 @@ PLANNERS: dict[str, Any] = {
 
 
 @dataclass
+class _Session:
+    """The collaborators one run hands between its steps.
+
+    Bundled so the event loop can read as a sequence of named moves rather than a single long
+    function threading a dozen locals through itself.
+    """
+
+    cases: dict[str, Case]
+    audit: AuditLog
+    executor: Executor
+    planner: Any
+    customers: CustomerModel
+    push: Any
+    reader: Any | None
+    message_log: list[tuple[str, datetime]] = field(default_factory=list)
+    waits: dict[str, int] = field(default_factory=dict)
+    reply_stats: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
 class RunResult:
     policy_name: str
     cases: list[Case]
@@ -172,6 +192,19 @@ class Runner:
             if hidden.organic_pay_at is not None:
                 push(hidden.organic_pay_at, "organic", case.id)
 
+        session = _Session(
+            cases=cases,
+            audit=audit,
+            executor=executor,
+            planner=planner,
+            customers=customers,
+            push=push,
+            reader=reader,
+            message_log=message_log,
+            waits=waits,
+            reply_stats=reply_stats,
+        )
+
         events = 0
         while queue_:
             when, _, kind, case_id, payload = heapq.heappop(queue_)
@@ -181,112 +214,7 @@ class Runner:
             if case.status is CaseStatus.closed:
                 continue
             events += 1
-
-            if kind == "organic":
-                self._organic_payment(case, when, audit)
-                continue
-            if kind == "reaction":
-                self._apply_reaction(
-                    case, when, payload, audit, push, executor, reply_stats, reader
-                )
-                continue
-            if kind == "promise":
-                self._resolve_promise(case, when, customers, audit, push)
-                continue
-            if kind == "human":
-                self._resolve_human(case, when, payload, audit)
-                continue
-
-            if case.status is CaseStatus.escalated:
-                continue
-
-            ctx = self._context(case, when, message_log)
-            decision = planner.plan(case, when, ctx)
-            action = decision.action
-
-            if action.type is ActionType.WAIT:
-                waits[case.id] = waits.get(case.id, 0) + 1
-                if waits[case.id] > MAX_CONSECUTIVE_WAITS:
-                    executor.execute(
-                        Action(
-                            case_id=case.id,
-                            type=ActionType.CLOSE,
-                            params={"outcome": Outcome.gave_up.value},
-                            scheduled_at=when,
-                        ),
-                        case,
-                        when,
-                        ctx,
-                        rationale="stopped waiting: no action ever became worthwhile",
-                    )
-                    continue
-                until = action.scheduled_at or (when + timedelta(hours=1))
-                if until <= when:
-                    until = when + timedelta(hours=1)
-                executor.execute(
-                    Action(case_id=case.id, type=ActionType.WAIT, scheduled_at=until),
-                    case,
-                    when,
-                    ctx,
-                    rule_ids=decision.rule_ids,
-                    rationale=decision.rationale,
-                )
-                push(until, "plan", case.id)
-                continue
-
-            waits[case.id] = 0
-            if decision.proposal is not None:
-                audit.record(
-                    ts=when,
-                    case_id=case.id,
-                    kind="proposal",
-                    actor="llm",
-                    summary=str(decision.proposal.get("reason", ""))[:200],
-                    payload={"proposal": decision.proposal},
-                )
-                audit.record(
-                    ts=when,
-                    case_id=case.id,
-                    kind="verdict",
-                    actor="policy",
-                    summary=decision.verdict or "",
-                    rule_ids=["R34"] if decision.verdict and "denied" in decision.verdict else [],
-                    payload={"accepted": decision.verdict == "allowed"},
-                )
-            result = executor.execute(
-                action,
-                case,
-                when,
-                ctx,
-                rule_ids=decision.rule_ids,
-                rationale=decision.rationale,
-                platform=bool(action.params.get("platform")),
-            )
-
-            if result.message is not None:
-                message_log.append((case.customer_id, when))
-                self.population.hidden(case.id).contacted = True
-                reaction = customers.react(
-                    case,
-                    action.type,
-                    when,
-                    channel=result.message.channel,
-                    tone=result.message.tone,
-                    language=result.message.language,
-                    guidance=not action.params.get("generic"),
-                )
-                push(when + reaction.delay, "reaction", case.id, reaction)
-
-            if result.escalated:
-                resolves, delay = customers.human_resolves(case)
-                if case.root_cause is RootCause.RISK_DECLINE:
-                    # A risk review confirms the decline; it is not a collections call.
-                    resolves = False
-                push(when + delay, "human", case.id, resolves)
-                continue
-
-            if case.status is not CaseStatus.closed:
-                push(when + REPLAN_GAP, "plan", case.id)
+            self._dispatch(kind, case, when, payload, session)
 
         # Anything still open when the horizon ends simply ran out of time.
         for case in cases.values():
@@ -312,6 +240,138 @@ class Runner:
             events_processed=events,
             llm_stats={**getattr(composer, "stats", lambda: {})(), "replies": reply_stats},
         )
+
+    # -- the loop, one event at a time --------------------------------------------------------
+
+    def _dispatch(self, kind: str, case: Case, when: datetime, payload: Any, s: _Session) -> None:
+        """Route one event. Four things can wake a case; the fifth is the agent deciding."""
+
+        if kind == "organic":
+            self._organic_payment(case, when, s.audit)
+        elif kind == "reaction":
+            self._apply_reaction(
+                case, when, payload, s.audit, s.push, s.executor, s.reply_stats, s.reader
+            )
+        elif kind == "promise":
+            self._resolve_promise(case, when, s.customers, s.audit, s.push)
+        elif kind == "human":
+            self._resolve_human(case, when, payload, s.audit)
+        elif case.status is not CaseStatus.escalated:
+            # A case with a human on it is theirs until they close it.
+            self._plan_and_act(case, when, s)
+
+    def _plan_and_act(self, case: Case, when: datetime, s: _Session) -> None:
+        ctx = self._context(case, when, s.message_log)
+        decision = s.planner.plan(case, when, ctx)
+
+        if decision.action.type is ActionType.WAIT:
+            self._wait(case, when, decision, ctx, s)
+            return
+
+        s.waits[case.id] = 0
+        if decision.proposal is not None:
+            self._record_proposal(case, when, decision, s.audit)
+
+        result = s.executor.execute(
+            decision.action,
+            case,
+            when,
+            ctx,
+            rule_ids=decision.rule_ids,
+            rationale=decision.rationale,
+            platform=bool(decision.action.params.get("platform")),
+        )
+
+        if result.message is not None:
+            self._await_customer(case, when, decision.action, result, s)
+
+        if result.escalated:
+            self._await_human(case, when, s)
+            return
+
+        if case.status is not CaseStatus.closed:
+            # Re-plan almost immediately, so the next action is scheduled to the minute rather
+            # than pinned to a coarse tick.
+            s.push(when + REPLAN_GAP, "plan", case.id)
+
+    def _wait(self, case: Case, when: datetime, decision, ctx: PolicyContext, s: _Session) -> None:
+        s.waits[case.id] = s.waits.get(case.id, 0) + 1
+        if s.waits[case.id] > MAX_CONSECUTIVE_WAITS:
+            # A planner that only ever waits would run forever. The age decay ends this long
+            # before the guard fires; it exists so a bug cannot hang a run.
+            s.executor.execute(
+                Action(
+                    case_id=case.id,
+                    type=ActionType.CLOSE,
+                    params={"outcome": Outcome.gave_up.value},
+                    scheduled_at=when,
+                ),
+                case,
+                when,
+                ctx,
+                rationale="stopped waiting: no action ever became worthwhile",
+            )
+            return
+
+        until = decision.action.scheduled_at or (when + timedelta(hours=1))
+        if until <= when:
+            until = when + timedelta(hours=1)
+        s.executor.execute(
+            Action(case_id=case.id, type=ActionType.WAIT, scheduled_at=until),
+            case,
+            when,
+            ctx,
+            rule_ids=decision.rule_ids,
+            rationale=decision.rationale,
+        )
+        s.push(until, "plan", case.id)
+
+    @staticmethod
+    def _record_proposal(case: Case, when: datetime, decision, audit: AuditLog) -> None:
+        """Write down what the model proposed and what the policy engine did with it.
+
+        Both lines, always. An override that is only visible in its result is not auditable.
+        """
+
+        audit.record(
+            ts=when,
+            case_id=case.id,
+            kind="proposal",
+            actor="llm",
+            summary=str(decision.proposal.get("reason", ""))[:200],
+            payload={"proposal": decision.proposal},
+        )
+        audit.record(
+            ts=when,
+            case_id=case.id,
+            kind="verdict",
+            actor="policy",
+            summary=decision.verdict or "",
+            rule_ids=["R34"] if decision.verdict and "denied" in decision.verdict else [],
+            payload={"accepted": decision.verdict == "allowed"},
+        )
+
+    def _await_customer(self, case: Case, when: datetime, action: Action, result, s: _Session) -> None:
+        s.message_log.append((case.customer_id, when))
+        self.population.hidden(case.id).contacted = True
+        reaction = s.customers.react(
+            case,
+            action.type,
+            when,
+            channel=result.message.channel,
+            tone=result.message.tone,
+            language=result.message.language,
+            guidance=not action.params.get("generic"),
+        )
+        s.push(when + reaction.delay, "reaction", case.id, reaction)
+
+    @staticmethod
+    def _await_human(case: Case, when: datetime, s: _Session) -> None:
+        resolves, delay = s.customers.human_resolves(case)
+        if case.root_cause is RootCause.RISK_DECLINE:
+            # A risk review confirms the decline; it is not a collections call.
+            resolves = False
+        s.push(when + delay, "human", case.id, resolves)
 
     # -- world events -------------------------------------------------------------------------
 

@@ -93,3 +93,23 @@ def earliest(engine: PolicyEngine, ctx: PolicyContext):
         return None
 
     return _earliest
+
+
+@pytest.fixture
+def isolated_state(tmp_path, monkeypatch):
+    """Point all live-mode persistence at a temporary directory.
+
+    Any test that exercises the webhook endpoint needs this: the endpoint creates and saves a
+    real case, and without isolation it writes into the developer's own `.live/` state. That
+    happened, and a test fixture's case turned up in a live run.
+    """
+
+    from wapsi.api import app as app_module
+    from wapsi.live import state as live_state
+
+    monkeypatch.setattr(live_state, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(live_state, "SEED_PATH", tmp_path / "seed.json")
+    monkeypatch.setattr(live_state, "CASES_PATH", tmp_path / "cases.json")
+    monkeypatch.setattr(live_state, "CURSOR_PATH", tmp_path / "cursor.json")
+    monkeypatch.setattr(app_module, "RESULTS_DIR", tmp_path / "results")
+    return tmp_path

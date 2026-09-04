@@ -64,10 +64,11 @@ class StubResource:
 
 
 class StubClient:
-    def __init__(self, links=None, invoices=None, subscriptions=None, payments=None):
+    def __init__(self, links=None, invoices=None, subscriptions=None, payments=None, orders=None):
         self.payment_link = StubResource(links or {})
         self.invoice = StubResource(invoices or {})
         self.subscription = StubResource(subscriptions or {})
+        self.order = StubResource(orders or {})
         self.payment = StubResource({}, page={"items": payments or []})
 
 
@@ -196,3 +197,47 @@ def test_dry_run_touches_no_account():
     link = gateway.create_payment_link(case, datetime.now(IST))
     assert link["id"] == "plink_dryrun"
     assert gateway.notify("payment_link", "plink_1", "sms")["dry_run"]
+
+
+def test_a_customer_who_pays_the_original_order_is_not_chased():
+    """The case carries an order id and no link id. If the order settles by any route — the
+    original link, a fresh checkout, a phone call to the merchant — we must notice, or we chase
+    somebody who has already paid. That is the one thing this system must never do."""
+
+    client = StubClient(orders={"order_LIVE001": {"id": "order_LIVE001", "status": "paid"}})
+    gateway = LiveGateway(client)
+    case = case_from_payment(FAILED_PAYMENT)
+    assert case.razorpay.get("order_id") == "order_LIVE001"
+    assert not case.razorpay.get("payment_link_id"), "this case has no link, only an order"
+
+    result = gateway.refresh(case, datetime.now(IST))
+    assert result["paid"] and result["entity"] == "order_LIVE001"
+
+
+def test_a_partially_paid_order_counts_as_paid():
+    client = StubClient(
+        orders={"order_LIVE001": {"id": "order_LIVE001", "status": "attempted", "amount_paid": 50000}}
+    )
+    gateway = LiveGateway(client)
+    assert gateway.refresh(case_from_payment(FAILED_PAYMENT), datetime.now(IST))["paid"]
+
+
+def test_an_unpaid_order_does_not_stop_recovery():
+    client = StubClient(
+        orders={"order_LIVE001": {"id": "order_LIVE001", "status": "attempted", "amount_paid": 0}}
+    )
+    gateway = LiveGateway(client)
+    assert not gateway.refresh(case_from_payment(FAILED_PAYMENT), datetime.now(IST))["paid"]
+
+
+def test_the_recovery_link_is_still_checked_before_the_order():
+    """Both can be paid; the agent's own link is the more specific answer."""
+
+    client = StubClient(
+        links={"plink_recovery": {"id": "plink_recovery", "status": "paid"}},
+        orders={"order_LIVE001": {"id": "order_LIVE001", "status": "paid"}},
+    )
+    gateway = LiveGateway(client)
+    case = case_from_payment(FAILED_PAYMENT)
+    case.razorpay["recovery_link_id"] = "plink_recovery"
+    assert gateway.refresh(case, datetime.now(IST))["entity"] == "plink_recovery"
