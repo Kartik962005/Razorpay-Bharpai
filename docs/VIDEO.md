@@ -4,6 +4,32 @@ Record after **10:00 IST**, so the live agent is inside its messaging window and
 camera. Before starting: `wapsi serve` running, dashboard open at `localhost:8000`, a second window
 with the Razorpay test dashboard, and a terminal.
 
+## Setup, in order, on the day
+
+Three cases are already waiting in `.live/`, diagnosed last night and scheduled for 10:00. Do not
+run `wapsi live reset` — that history *is* the demo.
+
+```bash
+cloudflared tunnel --url http://localhost:8000     # only if showing webhooks; note the new hostname
+wapsi serve --port 8000                            # dashboard + webhook endpoint
+wapsi live doctor                                  # confirm keys, model, webhook — all should be green
+```
+
+If the tunnel hostname changed overnight, update the webhook URL in the Razorpay dashboard, or
+just skip webhooks: the poller needs no tunnel and the demo works identically without one.
+
+Then, on camera:
+
+```bash
+wapsi live watch          # picks up the waiting cases, now inside the window, and acts
+```
+
+It prints the recovery link it creates. Open it, choose netbanking, press **Success** on the mock
+bank page. The next poll closes the case as recovered.
+
+If anything misbehaves live, `wapsi simulate --n 60` tells the same story in ten seconds — say
+which one you are showing.
+
 Total 5:00. The numbers below are the current ones in `results/report.md` — re-read them if the
 batch is re-run.
 
