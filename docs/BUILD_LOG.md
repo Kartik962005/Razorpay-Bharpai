@@ -48,5 +48,9 @@ dunga" parsed to `promise_to_pay / Friday / 0.95` on the first try).
 HMAC-SHA256 of the raw body with the secret in `.env`), although the scheme itself matches the
 official SDK's verifier on a dummy secret.
 
-**Got out:** (pending) — the secret typed into the dashboard and the one in `.env` differ; realign
-and re-fire.
+**Got out:** Two layers. First, the value in `.env` (51 chars) was not the value in the dashboard
+(a 48-char generated token) — realigned `.env`. Second, the receiver process had loaded the old
+secret at start-up, so the very next delivery still failed even though the file was now right;
+restarting it fixed that. Re-fired `payment_link.cancelled` → `signature_ok: true`. Lessons kept:
+`wapsi live doctor` prints a short fingerprint of the loaded webhook secret (never the value) so
+a stale process is obvious, and the app logs the fingerprint it loaded on boot.
