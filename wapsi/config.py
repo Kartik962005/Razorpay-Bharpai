@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     llm_model: str = ""
     llm_model_fast: str = ""
     llm_max_calls: int = 600
+    #: Seconds between calls. Some providers report their remaining headroom on every response
+    #: and the adapter paces itself from that; others report nothing at all, and then the only
+    #: safe pace is the one their documentation states. 60/15 = 4s for a 15-per-minute tier.
+    llm_min_interval: float = 1.0
 
     wapsi_mode: str = "sim"
 

@@ -39,8 +39,9 @@ MIN_OUTPUT_TOKENS = 400
 #: guess — the zeros are placeholders, since the real pause is computed from the headers.
 BACKOFF_SECONDS = (0, 0, 0)
 
-#: A floor between calls. The real pacing comes from the provider's own headroom (below); this
-#: only stops a burst before the first response has told us anything.
+#: Default floor between calls, overridable by ``LLM_MIN_INTERVAL``. Where a provider reports
+#: its remaining headroom this is only a burst guard; where it reports nothing, it is the whole
+#: of the pacing and must be set to match the tier.
 MIN_INTERVAL_SECONDS = 1.0
 
 #: Below this many tokens left in the current window, wait for the window to reset rather than
@@ -138,6 +139,7 @@ class LLM:
             if "groq" in (settings or get_settings()).llm_base_url.lower()
             else {}
         )
+        self._min_interval = max(0.0, getattr(self.settings, "llm_min_interval", MIN_INTERVAL_SECONDS))
         self._last_call = 0.0
         self._tokens_left: int | None = None
         self._requests_left: int | None = None
@@ -193,7 +195,7 @@ class LLM:
                 time.sleep(sleep_for)
             self._tokens_left = None
 
-        gap = MIN_INTERVAL_SECONDS - (time.monotonic() - self._last_call)
+        gap = self._min_interval - (time.monotonic() - self._last_call)
         if gap > 0:
             time.sleep(gap)
         self._last_call = time.monotonic()
