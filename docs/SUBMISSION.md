@@ -44,7 +44,7 @@ practices window, NPCI execution windows, the ₹15,000 authentication threshold
 frequency caps, and an expected-value floor. Every allow and deny cites a numbered rule in an
 append-only audit log.
 
-On 500 cases it recovers ₹17.6 lakh net against ₹14.5 lakh for Razorpay's own defaults and ₹4.5
+On 500 cases it recovers ₹17.2 lakh net against ₹14.5 lakh for Razorpay's own defaults and ₹4.5
 lakh for doing nothing — with a third fewer messages than the defaults, less than half the
 opt-outs, zero rule violations, and one dispute. The ranking survives scaling every behaviour
 assumption ±30% and, separately, stripping every penalty for careless recovery.

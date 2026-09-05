@@ -79,13 +79,17 @@ Optionally `cat policy.yaml | head -40` for two seconds to show it is genuinely 
 wapsi case case_0134
 ```
 
-> "Every decision writes to an append-only log with the rule id that produced it. This is the case
-> where the language model earned its keep — the only one in five hundred. The customer replied
-> *paisa Friday ko bhej dunga*. Both planners read it as a promise to pay; only the model resolved
-> the date. The pattern-matching version worked out a date already past, nudged again three days
-> later, got *bahut messages aa rahe hain, band karo*, and lost ₹39,522 to an opt-out."
+> "Every decision writes to an append-only log with the rule id that produced it — detection,
+> diagnosis, the expected value, the rule that allowed or refused each step, the customer's reply
+> as it was read, the outcome. Nothing here was written afterwards."
 
-That is the honest size of the model's contribution, and saying so is stronger than inflating it.
+Then say the thing most submissions will not:
+
+> "I also measured what the language model is worth, and the answer is nothing measurable. On the
+> first run it looked like it won a case worth ₹39,000. I ran it again with five times the model
+> coverage and the advantage vanished — 232 recovered against 233. One case in five hundred was
+> noise. The model writes the Hinglish and reads the replies; the rules recover the money, and I
+> would rather tell you that than sell you the first number."
 
 ## 2:50 – 4:05 · The live account — the centrepiece
 

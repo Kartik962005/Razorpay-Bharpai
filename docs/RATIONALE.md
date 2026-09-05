@@ -40,11 +40,12 @@ where it earns its place — writing Hinglish that sounds like a person, reading
 patterns mishandle, and briefing a human. It advises on actions but cannot widen the legal set,
 and the policy engine vetoes it.
 
-The measured answer, which is more useful than an inflated one: the model's
-contribution was ₹39,518, all of it one case, where it read *"paisa Friday ko bhej dunga"* with
-the right date and the regex did not. On this batch the model reads replies 92.3% correctly against
-91.6% for patterns — a small gap, because the replies are template-generated and patterns have an
-unfair advantage. On real Hinglish that gap would be wider, and that is where the model's value is.
+The measured answer, which is more useful than an inflated one: **on recovery outcome the model
+contributes nothing measurable.** 232 cases against the deterministic planner's 233, with 539 of
+898 messages model-written. An earlier, throttled run showed it ₹39,518 ahead on the strength of a
+single case; five times the coverage made that disappear, so it was noise. What the model does
+give is Hinglish that reads like a person wrote it — 406 of 406 requests genuinely Hinglish —
+which the recovery number cannot see and which this batch cannot value.
 
 Knowing where *not* to put the model is the argument.
 
