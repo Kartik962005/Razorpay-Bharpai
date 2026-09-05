@@ -538,3 +538,55 @@ the run it describes.
 it was not, and the only reason the errors surfaced is that the claim was challenged rather than
 taken. Two of them — the rule count and the per-cause table — would have been read by a reviewer
 who opened the repository and compared the README against `wapsi rules`.
+
+## 2026-09-05, later — reviewing it as a stranger would
+
+Everything above was written by someone who knew what the code was supposed to do. So the last
+pass was deliberately done the other way round: clone the repository fresh from GitHub into a new
+directory, build a new virtualenv, delete no state, assume nothing, and run every command the
+README and the video script tell a reviewer to run. Four things fell over that had never fallen
+over here.
+
+**Broke:** The language model's choice of channel, tone and language went straight onto the
+action. `Language("Hinglish")` raises. So does `Tone("Soft")`, and an unknown channel reaches the
+cost table as a `KeyError` — and nothing in the runner or the poller catches either. Ordinary
+capitalisation, which is what models actually emit, would have ended a run. It had not happened
+yet across roughly 1,400 calls, which is luck rather than design.
+
+**Got out:** Values are normalised before use, a four-entry synonym map handles "English", and a
+genuinely unknown value is refused as a model denial under R34 rather than raised. "Hindi" is
+still refused, deliberately: this system writes Hinglish, and silently accepting Hindi would send
+Devanagari to a customer who was never offered it.
+
+**Broke:** `LiveGateway.supports_retry = False` was declared in the first live commit and never
+read by anything. On the live path the planner kept proposing retries that test mode cannot
+perform, and the executor counted each one, so a case spent three of its five permitted actions on
+attempts that returned "unavailable" before it got to a payment link. The recorded live case
+avoided this only because the model happened to advise a link first.
+
+**Got out:** The planner asks the gateway what it is capable of, separately from asking the policy
+engine what is permitted. Two different questions that had been collapsed into one.
+
+**Broke:** `wapsi live watch` skipped waiting cases silently. A deferral is the most interesting
+thing this agent does, and the loop's output made it indistinguishable from a stopped process. It
+also offered payment links for cases that had already been recovered — the exact confusion the
+idempotency guard exists to prevent, reintroduced in the console output.
+
+**The one I would have been most embarrassed by.** The report says three model-written messages
+were rejected by the guardrails. All three were the validator's fault. Banned phrases were matched
+as substrings, so "courtesy" contained "court", and the Hinglish *fir se* — *again* — contained
+the initialism FIR, which is a police complaint. The guardrail was rejecting good Hinglish for
+being Hinglish. Matching is now whole-word, an all-caps entry in `policy.yaml` matches
+case-sensitively so FIR stays banned while *fir* does not, and the rejected text is written to the
+audit log, because a rejection recorded without its text cannot be diagnosed afterwards — which is
+why this took two months of runs to notice.
+
+**What the exercise is worth saying about.** Every one of these lives in a path the test suite
+covered and the batch exercised daily. What found them was changing who was asking: not "does this
+work" but "what happens to someone who has never seen it". Three of the four are invisible unless
+you run the live loop without a key, which I never had reason to do, because I have a key.
+
+Every published number is unchanged by all of it. The four model-free policies still reproduce
+`summary.json` exactly and `sensitivity.md` byte for byte — checked by regenerating both from a
+clean clone and diffing. That was the point of keeping the model out of the decisions that move
+money, and it is the first time that property has actually been useful rather than just claimed.
