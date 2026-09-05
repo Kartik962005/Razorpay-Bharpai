@@ -1,155 +1,182 @@
-# Five-minute pitch — shot list
+# Five minutes of it working
 
-Record after **10:00 IST**, so the live agent is inside its messaging window and the loop closes on
-camera. Before starting: `wapsi serve` running, dashboard open at `localhost:8000`, a second window
-with the Razorpay test dashboard, and a terminal.
+They asked for a repo that runs, a video of it running, and what broke at 2 a.m. So this is a
+screen recording of the terminal, not a slide deck. Every command below is real, and every one is
+fast enough to record live — measured on this machine:
 
-## Setup, in order, on the day
+| command | time |
+|---|---|
+| `wapsi simulate --n 500` (4 policies) | 13.3s |
+| `wapsi rules` | 0.7s |
+| `wapsi case case_0134` | 0.7s |
+| `wapsi live doctor` | 3.7s |
+| `wapsi live watch --once` | 4.9s |
 
-Three cases are already waiting in `.live/`, diagnosed last night and scheduled for 10:00. Do not
-run `wapsi live reset` — that history *is* the demo.
+Nothing needs to be cut or sped up. Talk while it runs.
 
-```bash
-cloudflared tunnel --url http://localhost:8000     # only if showing webhooks; note the new hostname
-wapsi serve --port 8000                            # dashboard + webhook endpoint
-wapsi live doctor                                  # confirm keys, model, webhook — all should be green
-```
+## Before you hit record
 
-If the tunnel hostname changed overnight, update the webhook URL in the Razorpay dashboard, or
-just skip webhooks: the poller needs no tunnel and the demo works identically without one.
-
-Then, on camera:
-
-```bash
-wapsi live watch          # picks up the waiting cases, now inside the window, and acts
-```
-
-It prints the recovery link it creates. Open it, choose netbanking, press **Success** on the mock
-bank page. The next poll closes the case as recovered.
-
-If anything misbehaves live, `wapsi simulate --n 60` tells the same story in ten seconds — say
-which one you are showing.
-
-Total 5:00. The numbers below are the current ones in `results/report.md` — re-read them if the
-batch is re-run.
+- Terminal at a large font — 16pt or more. The audit lines are the point and they must be legible.
+- Full screen, no notifications, one window.
+- `cd` into the repo and activate the venv so the first command is the first thing on screen.
+- Have `results/live_recovery.md` open in a second tab as a fallback if the live account misbehaves.
+- Optional title and closing cards: the slide deck at the artifact link — use only slide 1 at the
+  start and the last slide at the end. The middle is the terminal.
 
 ---
 
-## 0:00–0:35 · The leak
+## 0:00 – 0:25 · The problem, said once, over a static screen
 
-> "A ₹1,299 payment fails at 9:40 at night. Most recovery systems now do the same thing whatever
-> the reason: retry three times, then text an hour later. So the customer gets a message at 10:40
-> pm — outside the hours TRAI allows — and the retries fire against a bank that is still down."
+> "A payment fails. Almost every recovery system then does the same thing regardless of why it
+> failed — retry on a fixed ladder, remind on a fixed cadence. That treats a twenty-minute bank
+> outage, a blocked card and a mistyped CVV as the same event. One of those three can be fixed by
+> retrying. The other two can't. This is an agent that reads Razorpay's own failure codes, works
+> out which one it is, and acts only when it's allowed to."
 
-Show the naive row: **148 recovered, ₹63,141 spent, 126 disputes, 2,256 rule violations.**
+Don't linger. Get to the terminal.
 
-> "That's not a strawman. It's what untuned merchant automation does, and 112 of those violations
-> are messages sent to people who had already replied STOP."
+## 0:25 – 1:30 · The batch, running live
 
-## 0:35–1:05 · Why cause-blindness is the problem
+```bash
+wapsi simulate --n 500 --policies do_nothing,platform,naive,rules
+```
 
-> "Razorpay already tells you why a payment failed — `error_reason`, `error_source`, `error_step`.
-> A bank outage, a blocked card and a mistyped CVV arrive with different codes and need different
-> answers. Retrying is right for the first, useless for the second, and irrelevant for the third."
+Thirteen seconds. Talk through it as it runs:
 
-Point at the per-cause table: naive scores **16% on bank outages against a 42% do-nothing
-baseline**. Retrying into an outage is worse than doing nothing.
+> "Five hundred synthetic cases. Four policies over the identical batch with the same random
+> draws, so the differences are decisions, not luck."
 
-## 1:05–1:50 · The architecture, one slide
+When the table lands, read the row that matters:
 
-`docs/ARCHITECTURE.md` diagram on screen.
-
-> "Detect, diagnose, decide, act, verify. Diagnosis is a lookup table over Razorpay's own error
-> vocabulary — about 150 reasons onto 12 root causes. No model, because the vocabulary is
-> published and guessing would only add error.
+> "Row two is Razorpay's own defaults — the subscription retry ladder and reminder_enable, what a
+> merchant gets from the platform unprompted. That's the fair comparison, and it recovers ₹14.5
+> lakh. Wapsi recovers ₹17.6 lakh, with a third fewer messages — 816 against 1,196 — and loses 61
+> customers to opt-outs instead of 140.
 >
-> Every decision goes through a policy engine with 41 numbered rules in one YAML file: TRAI
-> messaging hours, RBI's fair practices window, NPCI's execution windows, the ₹15,000
-> authentication threshold. The language model can reorder the actions the engine has already
-> approved and write the message. It cannot add an action, revive a refused one, or move a
-> deadline."
+> Row three is untuned merchant automation. It breaks the rules 2,256 times, and 126 of its
+> recoveries turn into chargebacks. Those violations are scored by the same engine Wapsi obeys."
 
-## 1:50–3:20 · Live, on a real Razorpay test account
+## 1:30 – 2:05 · The rules are real, and they're in one file
 
-Terminal: `wapsi live watch`
-
-> "This is my Razorpay test account. I failed a ₹1,299 netbanking payment a minute ago."
-
-Show the ingest line, then the diagnosis, then — this is the moment — **the refusal**:
-
-```
-23:24  observation  detected on Razorpay: payment_failed, ₹1,299 on netbanking
-23:24  diagnosis    the bank rejected it at the authorization step; transient, recoverable
-23:25  verdict      waiting until 05 Sep 10:00 to SEND_PAYMENT_LINK (expected ₹428)
+```bash
+wapsi rules
 ```
 
-> "It knows this is worth ₹428 and it refuses to send anything, because it's 11:25 at night. It
-> schedules for ten in the morning, and it records which rule stopped it."
+> "Forty-one numbered rules. TRAI's messaging window, RBI's fair-practices hours for receivables,
+> NPCI's execution windows, the ₹15,000 authentication threshold, hard stops on opt-out and
+> dispute and risk decline. They live in one YAML file, not scattered through the code — change a
+> number there and the whole system changes with it."
 
-Then, inside the window, run it again: the agent creates a **real payment link**, visible in the
-Razorpay dashboard. Pay it with the mock bank's Success button. Next poll:
+Optionally `cat policy.yaml | head -40` for two seconds to show it is genuinely one readable file.
 
+## 2:05 – 2:50 · One case, end to end
+
+```bash
+wapsi case case_0134
 ```
-10:02  live_pay_…: RECOVERED ₹1,299
+
+> "Every decision writes to an append-only log with the rule id that produced it. This is the case
+> where the language model earned its keep — the only one in five hundred. The customer replied
+> *paisa Friday ko bhej dunga*. Both planners read it as a promise to pay; only the model resolved
+> the date. The pattern-matching version worked out a date already past, nudged again three days
+> later, got *bahut messages aa rahe hain, band karo*, and lost ₹39,522 to an opt-out."
+
+That is the honest size of the model's contribution, and saying so is stronger than inflating it.
+
+## 2:50 – 4:05 · The live account — the centrepiece
+
+```bash
+wapsi live doctor
 ```
 
-Click the case in the dashboard and scroll the audit trail.
+> "This is a real Razorpay test account. Keys, model, webhook, all live."
 
-> "Every line has the rule ids that produced it. Nothing here is a summary written afterwards —
-> it's the log the agent wrote as it went."
+Then the completed loop:
 
-## 3:20–4:20 · The numbers
+```bash
+wapsi case live_pay_TY37K6kpZ1pGmE
+```
 
-> "One demo proves nothing, so: 500 cases, four policies, the same batch and the same random
-> draws."
+A live case id reads the live trail automatically — same command as the batch case.
 
-| | recovered | ₹ net | messages | opt-outs | violations |
-|---|---|---|---|---|---|
-| do nothing | 111 | ₹4,53,197 | 0 | 0 | 0 |
-| Razorpay defaults | 141 | ₹14,48,095 | 1,196 | 140 | — |
-| naive | 148 | ₹15,81,044 | 750 | 104 | 2,256 |
-| **Wapsi** | **234** | **₹17,63,358** | 817 | 61 | **0** |
-
-> "The row that matters is the second one — what a merchant gets from Razorpay's own defaults.
-> Wapsi recovers 65% more cases with a third fewer messages, and loses 61 customers to opt-outs
-> instead of 140. ₹2.8 lakh more, for ₹662 of cost, and zero rule violations — judged by the same
-> engine that scores the naive row's 2,256.
+> "Last night I failed a real ₹1,299 netbanking payment on this account. Here is what the agent
+> did with it.
 >
-> Three things I'd rather you heard from me than found yourselves. The measured results are a
-> simulation, because test mode can't produce 500 failures — the priors are published figures, and
-> the ranking survives scaling them ±30%. Excluding every case that would have resolved itself
-> anyway, the strict figure is ₹14.3 lakh, not ₹17.6. And we contacted 51 people who'd have paid
-> without us; that's counted against us in the report."
+> 23:24, it ingested the failure from the API and diagnosed it from Razorpay's own error fields.
+>
+> **23:25 — it refused to act.** It knows this payment is worth ₹428 in expected recovery, and it
+> will not send anything, because TRAI permits customer messaging between 10 a.m. and 9 p.m. It
+> scheduled for 10:00 and recorded the rule that stopped it.
+>
+> 10:07 this morning, the window opened and it acted within seconds — created a real payment link
+> in the account and sent it. I paid it.
+>
+> 10:13 — before acting again it refetched the status, found the money, and stopped. Rule R01.
+> Eighty paise, one message, ₹1,299 recovered."
 
-## 4:20–4:45 · What broke
+Then show the agent still holding a live case:
 
-Pick one — the strongest is the weekly cap:
+```bash
+wapsi live watch --once
+```
 
-> "The agent kept abandoning recoverable invoices seconds after the first reminder. The rule doing
-> it was the per-customer weekly message cap — which is temporary, it lifts as messages age out.
-> But it was reported to the planner with no expiry time, so the planner couldn't tell 'blocked
-> until Tuesday' from 'blocked forever' and closed the case. Every temporary rule now returns the
-> moment it lifts."
+> "And here it is right now, declining to chase the ₹15,000 invoice — it already sent one reminder
+> today and the receivables rule spaces them 72 hours apart, so it's waiting until the 8th."
 
-Or the honest one about the model:
+A live refusal, unscripted, is worth more than a live send.
 
-> "I measured what the model was worth and it was ₹39,518 — all of it one case out of five hundred,
-> where a customer wrote 'paisa Friday ko bhej dunga' and only the model got the date right. The
-> regex nudged too early and lost them to an opt-out. That's the real size of it, and the report
-> prints the comparison in both directions."
+## 4:05 – 4:40 · What broke at 2 a.m.
 
-## 4:45–5:00 · Next
+This is the literal answer to their question, and it happened at 01:36.
 
-> "Inside Razorpay this consumes `payment.downtime` directly instead of inferring outages, hands
-> abandoned checkouts to Magic Checkout, and learns the priors per merchant from their own history
-> — the architecture already isolates them in one file for exactly that."
+> "At about half one this morning I was reading the live state, waiting for the messaging window,
+> and I noticed a case id that didn't belong to Razorpay — a test fixture had written into real
+> state. Fixing that made me look at the other live cases properly, and I found something worse.
+>
+> The guard that stops the agent chasing someone who has already paid didn't work on the live
+> path. A case born from a failed payment carries an order id, and the check looked only at
+> payment links, invoices and subscriptions. If the customer went back and paid the original link,
+> the order settled and the agent would have kept messaging them.
+>
+> That's the failure this whole project claims to prevent, sitting in my own code. And the batch
+> could never have caught it — the simulated gateway answers from the case object, so it always
+> agreed with whatever the agent already believed. A simulation only tests the questions you
+> thought to ask it. I found it by reading real Razorpay ids at half past one, not by running
+> anything.
+>
+> Fixed by checking the order too, by status and by amount_paid, since partial settlement is
+> reported as an amount rather than a status. Three tests pin it. The R01 line you just saw fire
+> on a real payment is that fix working."
+
+## 4:40 – 5:00 · Close
+
+```bash
+pytest -q
+```
+
+> "192 tests, no network, CI on Linux and Windows with no keys. Clone it, `pip install -e .`,
+> `wapsi simulate` — no API key needed, and it reproduces every number I just showed you. The
+> language model is optional throughout; without one it runs on templates and pattern matching and
+> the batch result is the same."
+
+End on the repo URL.
 
 ---
 
-## Recording notes
+## If the live account misbehaves on the day
 
-- Terminal at a large font; the audit lines are the point and they must be readable.
-- Don't narrate the code. Narrate decisions and show their consequences.
-- The refusal at 23:25 is the single most persuasive fifteen seconds. Don't rush it.
-- If the live loop misbehaves on the day, `wapsi simulate --n 60` gives the same story in ten
-  seconds and is a legitimate fallback — say which one you're showing.
+Don't improvise against a live API on camera. Fall back to:
+
+```bash
+cat results/live_recovery.md
+```
+
+The committed trail is the same evidence, and say plainly that you are reading the recorded run.
+`wapsi simulate --n 60` gives the whole batch story in three seconds if you need to fill.
+
+## What not to do
+
+- Don't walk through the code file by file. They can read it; the video is for what they can't.
+- Don't claim the model does more than it does. The measured figure is one case, and the honesty
+  is the differentiator.
+- Don't skip the 23:25 refusal to get to the recovery. The refusal is the argument.

@@ -73,3 +73,32 @@ def test_live_reset_touches_only_local_state(isolated_state):
     assert result.exit_code == 0
     # The seeded entities still exist in Razorpay; only local tracking is cleared.
     assert "seed.json kept" in result.output
+
+
+def test_a_live_case_id_reads_the_live_trail(isolated_state):
+    """One command shows either kind of case. The demo depends on it."""
+
+    from datetime import datetime
+
+    from wapsi.config import IST
+    from wapsi.core.audit import AuditLog
+
+    audit = AuditLog(isolated_state / "audit.jsonl")
+    audit.record(
+        ts=datetime.now(IST),
+        case_id="live_pay_ABC123",
+        kind="verdict",
+        actor="planner",
+        summary="waiting until 10:00 to SEND_PAYMENT_LINK",
+        rule_ids=["R10"],
+    )
+
+    result = runner.invoke(app, ["case", "live_pay_ABC123"])
+    assert result.exit_code == 0, result.output
+    assert "R10" in result.output
+
+
+def test_an_unknown_live_case_says_how_to_produce_one(isolated_state):
+    result = runner.invoke(app, ["case", "live_pay_NOPE"])
+    assert result.exit_code == 1
+    assert "wapsi live watch" in result.output

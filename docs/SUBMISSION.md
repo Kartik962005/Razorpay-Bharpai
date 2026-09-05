@@ -51,10 +51,46 @@ assumption ±30% and, separately, stripping every penalty for careless recovery.
 
 ---
 
-### What broke, and how you got out
+### What broke at 2 a.m., and how you got out
 
-*(~320 words. The full log is `docs/BUILD_LOG.md`. Two candidates below; the second is the
-stronger one if the form gives you the room.)*
+*(~330 words. This one is literal — it happened at 01:36 on the last night. The full log is
+`docs/BUILD_LOG.md`.)*
+
+At about half past one in the morning I was reading the agent's live state, waiting for the
+messaging window to open so I could film the loop closing, and I noticed a case id that had no
+business being there: `live_pay_TESTFAILED001`. That id only exists in a test fixture. A test had
+written into the real state directory — when the webhook endpoint gained the ability to create
+cases, an older test of that endpoint silently gained the side effect, and it had no isolation
+because when it was written the endpoint only logged.
+
+Annoying, easy to fix. But it made me read the other three cases properly instead of glancing at
+them, and there I found something much worse.
+
+The guard that stops the agent chasing someone who has already paid did not work on the live path.
+A case created from a failed payment carries an *order* id; the check looked only at payment links,
+invoices and subscriptions. So if a customer went back and paid the original link, the order would
+settle and Wapsi would keep messaging them. That is precisely the failure this project exists to
+prevent, sitting in my own code, on the only path that touches real money.
+
+What actually unsettled me is that my test suite could never have caught it. In the simulation the
+gateway answers from the case object itself, so it always agreed with whatever the agent already
+believed. Five hundred cases and a hundred and ninety tests, and the thing was invisible to all of
+them. I only found it by reading real Razorpay ids at half past one. A simulation tests the
+questions you thought to ask it, and nothing else.
+
+The fix checks the order too — by status and by `amount_paid`, because Razorpay reports partial
+settlement as an amount rather than a status. Three tests pin it. Then I went looking for the rest
+of that family and found three more: a weekly messaging cap that reset on restart, a payment
+listing that read one page and advanced the cursor past everything after it, and the isolation
+fixture recurring inside its own fix because I had added a new state file to it.
+
+Eight hours later the agent recovered a real ₹1,299 payment on the test account, and the last line
+of that trail is `[R01] payment already received; stopping before acting` — the fixed guard,
+working, on a real payment. That is in `results/live_recovery.md`.
+
+---
+
+### Alternative answer, if you want the design story instead
 
 **Option A — the bug that shaped the design.**
 

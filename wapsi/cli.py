@@ -395,6 +395,24 @@ def case(
 ) -> None:
     """Print one case's full audit timeline."""
 
+    # A live case id names a case on the real account, whose trail lives outside results/.
+    # Looking there first means one command reads either kind, which is what you want when
+    # you are showing somebody a case rather than remembering where it was written.
+    if case_id.startswith("live_"):
+        from wapsi.live import state
+
+        live_log = state.audit_path()
+        if live_log.exists():
+            entries = [e for e in AuditLog.read(live_log) if e.case_id == case_id]
+            if entries:
+                console.print(format_timeline(entries))
+                return
+        console.print(
+            f"[yellow]No live trail for {case_id}.[/yellow] "
+            "Run `wapsi live watch` against a test account first."
+        )
+        raise typer.Exit(1)
+
     path = out / f"audit_{policy}.jsonl"
     if not path.exists():
         # Audit logs are large and regenerated deterministically, so they are not committed.
