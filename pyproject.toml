@@ -27,7 +27,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+# ruff is declared because [tool.ruff] below configures it; a lint config no one can run
+# is a claim rather than a check.
+dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [project.scripts]
 bharpai = "bharpai.cli:app"
