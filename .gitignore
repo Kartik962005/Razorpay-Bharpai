@@ -8,6 +8,7 @@ __pycache__/
 results/**/*.jsonl
 results/full/
 .pytest_cache/
+.pytest-tmp/
 .mypy_cache/
 dist/
 build/

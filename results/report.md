@@ -33,7 +33,7 @@
 
 ## Where the cause-blind policy beat the agent
 
-19 case(s) — cases the naive policy recovered and Wapsi did not, usually because Wapsi declined to contact someone the rules protect.
+19 case(s) — cases the naive policy recovered and Bharpai did not, usually because Bharpai declined to contact someone the rules protect.
 
 | case | cause | amount | naive | rules |
 |---|---|---|---|---|

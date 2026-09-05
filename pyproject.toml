@@ -65,7 +65,10 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# --basetemp keeps each run's temporary files in the repo instead of the user's temp root.
+# pytest otherwise maintains a `pytest-current` symlink there, and a stale or circular one
+# makes session cleanup raise PermissionError on Windows after every test has already passed.
+addopts = "-q --basetemp=.pytest-tmp"
 # The suite imports shared fixtures as `from tests.conftest import NOW`, which needs the repo
 # root importable. `python -m pytest` adds it implicitly and bare `pytest` does not, so without
 # this the documented command fails for everyone while passing for whoever wrote it.
