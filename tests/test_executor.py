@@ -11,7 +11,6 @@ from wapsi.config import IST
 from wapsi.core.audit import AuditLog
 from wapsi.core.executor import Executor
 from wapsi.core.models import Action, ActionType, Channel, Method, Outcome, RootCause, Scenario
-from wapsi.core.policy import PolicyContext
 
 from tests.conftest import NOW
 

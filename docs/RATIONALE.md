@@ -125,7 +125,7 @@ the time is the design, not an accident.
 ### The numbers, in one place
 
 - 500 cases, seed 42, identical batch for every policy
-- do nothing 22.2% · **Razorpay defaults 28.2%** · naive 29.6% · Wapsi 46.8%
+- do nothing 22.2% · **Razorpay defaults 28.2%** · naive 29.6% · Wapsi 46.6%
 - ₹17.6L net · defaults ₹14.5L · naive ₹15.8L · nothing ₹4.5L
 - **₹2.8L above the platform's own defaults**, with 816 messages to their 1,196 and 62 opt-outs
   to their 140 — the fair comparison, and the one the README leads with

@@ -194,24 +194,39 @@ the decisions that move money.
 every reply is read by regular expression. The batch numbers, the tests and the live demo all work
 that way, so nothing here has to be taken on trust to reproduce.
 
-### What the model was actually worth
+### What the model was actually worth: nothing measurable
 
-Measured, not asserted: **₹39,518 — and all of it is one case.**
+This is the result I did not expect, and it is the one worth reading.
 
-On case_0134 a customer replied *"paisa Friday ko bhej dunga"*. Both planners read it as a promise
-to pay; only the model resolved the date correctly. The pattern-matching planner worked out a date
-that had already passed, nudged again three days later, received *"bahut messages aa rahe hain,
-band karo"*, and lost ₹39,522 to an opt-out. The model-advised planner stayed quiet and the
-customer paid.
+The model writes the messages and reads the replies. On **recovery outcome it makes no
+difference** — 232 cases against the deterministic planner's 233, ₹17,23,524 against ₹17,23,840.
+Within noise, and if anything fractionally behind.
 
-Both audit trails are committed side by side in [`results/case_0134.md`](results/case_0134.md),
-so the claim can be checked without running anything.
+That conclusion took two attempts to earn. On a first run, where a rate limit meant the model
+wrote only 106 of 898 messages, the model-advised policy came out **₹39,518 ahead** — and the
+entire difference was **one case**, where a customer wrote *"paisa Friday ko bhej dunga"* and only
+the model resolved the date correctly. Both trails are committed in
+[`results/case_0134.md`](results/case_0134.md). It would have been easy to report that as the
+model's contribution and stop.
 
-One case in five hundred, entirely explained by reading a Hinglish date. The report prints the
-comparison in both directions; the deterministic planner beat the model on zero cases. On reading
-replies overall the model scores 92.3% against the regular expressions' 91.6% — a much smaller gap
-than expected, because these replies are generated from templates and patterns have an unfair
-advantage over them.
+Running it again on a different provider with **539 of 898 messages model-written** — five times
+the coverage — the advantage disappeared and reversed. One case in five hundred was noise.
+
+What the model does contribute is quality the recovery number cannot see: asked for Hinglish 406
+times, it produced genuine Hinglish 406 times, against templates that are correct but identical
+every time. Whether that matters is not something this batch can measure, and putting a number on
+it would be inventing one.
+
+**On reading replies it is slightly worse than the regular expressions** — 88.3% against 91.6% on
+exact match. Almost every miss on both sides is the same one: a customer writing *"bahut messages
+aa rahe hain, band karo"* — literally *too many messages, stop it* — which the simulation labels a
+complaint and both readers call an opt-out. Stopping there is the right call and the label is the
+debatable half, which is why the report also counts misreadings by direction: **34 erred toward
+contacting less, exactly 1 erred toward contacting more, 99.7% were safe in that sense.**
+
+The honest summary: the rules recover the money. The model is a writing and reading layer whose
+contribution to recovery is not measurable on this batch, and the answer to "where is the AI" is
+that it was deliberately kept out of the decisions that move money.
 
 ---
 

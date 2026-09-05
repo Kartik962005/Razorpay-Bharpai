@@ -16,15 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from wapsi.core import taxonomy
-from wapsi.core.models import (
-    CONTACT_ACTIONS,
-    Action,
-    ActionType,
-    Case,
-    CaseStatus,
-    Outcome,
-    RootCause,
-)
+from wapsi.core.models import Action, ActionType, Case, CaseStatus, Outcome, RootCause
 from wapsi.core.policy import PolicyContext, PolicyEngine
 from wapsi.core.timing import is_salary_window
 

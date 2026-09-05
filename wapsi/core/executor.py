@@ -21,17 +21,14 @@ from wapsi.adapters.messaging import Messenger
 from wapsi.adapters.templates import escalation_brief
 from wapsi.core.audit import AuditLog
 from wapsi.core.models import (
-    CONTACT_ACTIONS,
     Action,
     ActionType,
     Case,
     CaseStatus,
     Channel,
-    Language,
     Message,
     Outcome,
     RootCause,
-    Tone,
 )
 from wapsi.core.policy import PolicyContext, PolicyEngine
 from wapsi.core.validator import validate
