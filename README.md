@@ -30,11 +30,11 @@ the differences below are decisions, not luck.
 | do nothing | 111 | 22.2% | ₹4,53,210 | ₹13 | ₹4,53,197 | 0 | 0 | 0 | 0 |
 | **Razorpay defaults** (retry ladder + `reminder_enable`) | 141 | 28.2% | ₹14,54,810 | ₹6,715 | ₹14,48,095 | 1,196 | 140 | 13 | — |
 | naive (retry ×3, then text) | 148 | 29.6% | ₹16,44,185 | ₹63,141 | ₹15,81,044 | 750 | 104 | 126 | **2,256** |
-| **Wapsi, rules only** | 233 | 46.6% | ₹17,24,498 | ₹659 | ₹17,23,840 | 816 | 62 | 1 | **0** |
-| **Wapsi, model-advised** | **234** | **46.8%** | ₹17,64,020 | ₹662 | **₹17,63,358** | 817 | 61 | 1 | **0** |
+| **Wapsi** | **233** | **46.6%** | ₹17,24,498 | ₹659 | **₹17,23,840** | 816 | 62 | 1 | **0** |
+| Wapsi, model-advised | 232 | 46.4% | ₹17,24,199 | ₹676 | ₹17,23,524 | 818 | 72 | 1 | **0** |
 
 **₹2.8 lakh more than Razorpay's own defaults recover, with a third fewer messages and less than
-half the opt-outs. ₹13.1 lakh more than doing nothing. Zero rule violations.**
+half the opt-outs. ₹12.7 lakh more than doing nothing. Zero rule violations.**
 
 The fair comparison is the second row — what a merchant gets from the platform unprompted — and
 that is the claim: Wapsi recovers 65% more cases than the defaults while sending 1,196 → 816
@@ -176,6 +176,11 @@ Every action refetches payment status first. Nobody is chased for money they hav
 ---
 
 ## Where the language model is used, and where it is not
+
+The honest summary: the rules are what recover the money, and the model is a writing and reading
+layer whose contribution to recovery is not measurable on this batch. The table below is what it
+is allowed to touch, and the answer to "where's the AI" is that it was deliberately kept out of
+the decisions that move money.
 
 | task | model? | what stops it going wrong |
 |---|---|---|

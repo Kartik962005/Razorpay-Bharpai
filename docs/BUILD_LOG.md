@@ -470,3 +470,41 @@ report already does, and now does without hundreds of failures cluttering the nu
 Worth noting what this did *not* change: the batch result. The system was designed so the model is
 optional, and the run completes on templates when it is unavailable. Being rate-limited for most of
 a batch is exactly the condition that design exists for, and the recovery numbers held.
+
+## 2026-09-05 — the model measured properly, and the answer changed
+
+A second API key with a 1,500-per-day allowance made full coverage reachable, so the model finally
+got a fair test: 539 of 898 messages written by it instead of 106, and 210 of 299 replies read by
+it instead of 8.
+
+**The advantage disappeared.** 232 cases recovered against the deterministic planner's 233;
+₹17,23,524 against ₹17,23,840. Marginally behind, comfortably inside noise.
+
+Which means the earlier result was noise too. On the throttled run the model-advised policy came
+out ₹39,518 ahead, and the whole of that was a single case where a customer wrote *"paisa Friday
+ko bhej dunga"* and only the model resolved the date. I had already written that up as the
+model's measured contribution. It was one case in five hundred, and it did not reproduce. The
+right conclusion is the one the second run gives: on recovery outcome the model contributes
+nothing measurable, and the rules are what recover the money.
+
+That is now what the README says. It is a smaller claim and a truer one, and finding it cost
+nothing but the willingness to run the experiment again after it had already produced a flattering
+answer.
+
+**A measurement bug, found by comparing the two readers.** Reply-reading accuracy came out at
+88.3% for the model against 91.6% for the regular expressions, which looked like the model being
+worse. It is not. Both readers make the same mistake and it is barely a mistake: a customer
+writing *"bahut messages aa rahe hain, band karo"* — *too many messages, stop it* — is labelled a
+complaint by the simulator and read as an opt-out by both. Stopping there is correct; the label is
+the debatable half. The report now counts misreadings by direction, because an error that stops
+contact is not the same kind of error as one that continues it: 34 erred toward less contact,
+exactly one erred toward more, and 99.7% were safe in that sense. The headline accuracy figure was
+burying the only distinction that matters.
+
+**Two provider quirks worth recording.** Several Gemini model ids are still listed by `/models`
+and answer 404 — `gemini-2.5-flash` among them — so the ids in `.env` were checked before the run
+rather than after it failed. And the full `flash` models return malformed JSON on the
+OpenAI-compatible endpoint while the `-lite` ones are reliable, which is the opposite of the
+obvious assumption. The endpoint also returns no rate-limit headers at all, so the adapter's
+pacing became a setting: providers that report headroom are paced from what they report, and
+providers that report nothing are told their own limit.

@@ -216,6 +216,7 @@ def _model_section(results: dict) -> list[str]:
         accuracy = replies["correct"] / replies["read"]
         caught = replies.get("hard_stops_caught", 0)
         total_hard = replies.get("hard_stops", 0)
+        cautious, risky = _misread_severity(result)
         lines += [
             f"## Reading customer replies — {name}",
             "",
@@ -229,6 +230,12 @@ def _model_section(results: dict) -> list[str]:
                 if total_hard
                 else ""
             ),
+            # Not all misreadings are equal. Stopping contact when you did not strictly have to
+            # costs a recovery; carrying on when you should have stopped is the one that reaches
+            # a person who asked to be left alone.
+            f"- of the misreadings, {cautious} stopped contact more readily than the label "
+            f"required and {risky} did the opposite — "
+            f"{(replies['read'] - risky) / replies['read']:.1%} were safe in that sense",
             "",
         ]
         if stats.get("calls"):
@@ -249,6 +256,37 @@ _HINDI = re.compile(
     r"dijiye|kripya|yahan|kyunki|dobara|kal|aaj|paise|paisa)\b",
     re.IGNORECASE,
 )
+
+
+#: How much a reading restrains the agent. Reading a reply as something higher on this scale
+#: than it was means less contact, not more, which is the direction an error should go in.
+_CAUTION = {
+    "opt_out": 3, "dispute": 3, "complaint": 2,
+    "promise_to_pay": 1, "paid_claim": 1, "question": 0, "other": 0,
+}
+
+
+def _misread_severity(result) -> tuple[int, int]:
+    """Split misread replies into the cautious ones and the risky ones.
+
+    Worth separating because the headline accuracy figure buries the distinction. Nearly every
+    misreading in this batch is the reader treating *"bahut messages aa rahe hain, band karo"* —
+    literally *too many messages, stop it* — as an opt-out when the simulation labelled it a
+    complaint. Stopping there is the right call; the label is the debatable half.
+    """
+
+    cautious = risky = 0
+    for entry in result.audit.entries:
+        if entry.kind != "reply":
+            continue
+        read, actual = entry.payload.get("read_as"), entry.payload.get("actual")
+        if not read or read == actual:
+            continue
+        if _CAUTION.get(read, 0) > _CAUTION.get(actual, 0):
+            cautious += 1
+        else:
+            risky += 1
+    return cautious, risky
 
 
 def _writing_section(name: str, result) -> list[str]:
