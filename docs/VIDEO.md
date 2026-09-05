@@ -6,13 +6,17 @@ fast enough to record live — measured on this machine:
 
 | command | time |
 |---|---|
-| `wapsi simulate --n 500` (4 policies) | 13.3s |
-| `wapsi rules` | 0.7s |
-| `wapsi case case_0134` | 0.7s |
-| `wapsi live doctor` | 3.7s |
-| `wapsi live watch --once` | 4.9s |
+| `wapsi simulate --n 500` (4 policies) | 13s idle, ~30s under load |
+| `wapsi rules` | under 2s |
+| `wapsi case case_0134` | under 2s |
+| `wapsi case live_pay_…` | under 2s |
+| `wapsi live doctor` | 4–10s (it calls the Razorpay API) |
+| `wapsi live watch --once` | 5–8s (same) |
 
-Nothing needs to be cut or sped up. Talk while it runs.
+Under a minute of machine time in a five-minute video. Nothing needs cutting or speeding up — but
+close other heavy applications first, since the batch is the one command long enough to feel slow
+if the machine is busy. Talk while it runs; the pause is not dead air if you are explaining what
+it is doing.
 
 ## Before you hit record
 
@@ -41,7 +45,7 @@ Don't linger. Get to the terminal.
 wapsi simulate --n 500 --policies do_nothing,platform,naive,rules
 ```
 
-Thirteen seconds. Talk through it as it runs:
+Around fifteen seconds. Talk through it as it runs:
 
 > "Five hundred synthetic cases. Four policies over the identical batch with the same random
 > draws, so the differences are decisions, not luck."
