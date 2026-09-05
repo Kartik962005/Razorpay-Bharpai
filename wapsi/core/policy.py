@@ -339,9 +339,12 @@ class PolicyEngine:
                 if now < earliest:
                     deny("R13", earliest)
 
-        if case.root_cause is RootCause.TRANSIENT_TECH:
-            if self.transient["wait_for_downtime_resolved"] and ctx.downtime_active:
-                deny("R16")
+        if (
+            case.root_cause is RootCause.TRANSIENT_TECH
+            and self.transient["wait_for_downtime_resolved"]
+            and ctx.downtime_active
+        ):
+            deny("R16")
 
         gap = timedelta(minutes=int(self.transient["min_gap_minutes"]))
         if case.last_retry_at is not None and now - case.last_retry_at < gap:

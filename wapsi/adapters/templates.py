@@ -102,7 +102,7 @@ def render(ctx: MessageContext, *, predebit: bool = False, guidance: bool = True
 
     key = (ctx.scenario, ctx.language, ctx.tone)
     opener = _OPENERS.get(key) or _OPENERS[(Scenario.A, ctx.language, ctx.tone)]
-    greeting = f"Hi {ctx.first_name}," if ctx.language is Language.en else f"Hi {ctx.first_name},"
+    greeting = f"Hi {ctx.first_name},"
     body = opener.format(amount=ctx.amount_text, merchant=ctx.merchant_name)
     closer = _CLOSERS[ctx.language].format(link=ctx.link)
 

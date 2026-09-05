@@ -124,3 +124,34 @@ def test_ordinary_capitals_are_not_mistaken_for_jargon(policy):
     ctx = context()
     text = f"Hi Aarav, your Chai Point payment of ₹1,299 failed. Try UPI: {LINK} Reply STOP to opt out."
     assert validate(text, ctx, policy).ok
+
+
+def test_an_ordinary_word_is_not_a_threat_because_it_contains_one(policy):
+    """Substring matching read "courtesy" as "court" and rejected three real messages."""
+
+    ctx = context()
+    text = (
+        f"Hi Aarav, a courtesy reminder that your Chai Point payment of ₹1,299 is pending. "
+        f"{LINK} Reply STOP to opt out."
+    )
+    result = validate(text, ctx, policy)
+    assert result.ok, result.failures
+
+
+def test_hinglish_fir_means_again_and_is_not_a_police_complaint(policy):
+    """The banned initialism is FIR. The Hinglish word "fir" is how you say "again"."""
+
+    ctx = context(language=Language.hinglish)
+    text = (
+        f"Hi Aarav, Chai Point ka ₹1,299 payment fail ho gaya. Fir se try karein: {LINK} "
+        f"STOP likhein to messages band."
+    )
+    assert validate(text, ctx, policy).ok, validate(text, ctx, policy).failures
+
+    threat = (
+        f"Hi Aarav, Chai Point ₹1,299 unpaid. We will file an FIR against you. {LINK} "
+        f"Reply STOP to opt out."
+    )
+    result = validate(threat, ctx, policy)
+    assert not result.ok
+    assert any("FIR" in f for f in result.failures)

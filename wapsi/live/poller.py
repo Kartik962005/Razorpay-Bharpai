@@ -250,6 +250,9 @@ class LivePoller:
             customer_message_times=times,
             salary_window=is_salary_window(now),
             paid=case.paid,
+            # Test mode cannot initiate a charge, so the planner must not spend this case's
+            # action budget proposing one. The gateway is asked rather than assumed.
+            extra={"retry_available": getattr(self.gateway, "supports_retry", True)},
         )
 
     def _downtime(self, case: Case) -> bool:
@@ -276,6 +279,12 @@ class LivePoller:
         now = now or datetime.now(IST)
         lines: list[str] = []
 
+        # The webhook endpoint runs in a different process and may have written cases since this
+        # poller started. Adopt them before ingesting, so a case that arrived by webhook is acted
+        # on rather than discovered a second time by the API listing.
+        for case_id, stored in state.load_cases().items():
+            self.cases.setdefault(case_id, stored)
+
         for case in self.ingest(now):
             lines.append(f"new case {case.id}: {case.diagnosis_text}")
 
@@ -283,6 +292,17 @@ class LivePoller:
             if case.status is CaseStatus.closed:
                 continue
             if case.next_action_at and now < case.next_action_at:
+                # Say so rather than skipping silently: a refusal the operator cannot see is
+                # indistinguishable from the agent having stopped working. The stored reason
+                # already names the time, so it is printed as the planner phrased it.
+                lines.append(
+                    f"{case.id}: "
+                    + (
+                        case.wait_reason
+                        or f"waiting until {case.next_action_at:%d %b %H:%M} for the next "
+                        "permitted action"
+                    )
+                )
                 continue
 
             ctx = self._context(case, now)
@@ -297,11 +317,11 @@ class LivePoller:
             )
 
             if decision.action.type is ActionType.WAIT:
-                lines.append(f"{case.id}: waiting — {decision.rationale}")
+                lines.append(f"{case.id}: {decision.rationale}")
             elif result.closed:
                 lines.append(f"{case.id}: closed as {case.outcome.value if case.outcome else '?'}")
             elif result.message is not None:
-                link = case.razorpay.get("recovery_link_id_url", "")
+                link = case.razorpay.get("recovery_link_url", "")
                 lines.append(
                     f"{case.id}: {decision.action.type.value} via "
                     f"{result.message.channel.value} — {link or 'link created'}"

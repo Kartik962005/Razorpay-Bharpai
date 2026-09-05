@@ -190,7 +190,7 @@ def test_a_model_reading_is_used_where_no_hard_stop_applies():
         def parse_reply(self, text, today):
             return {"intent": "promise_to_pay", "promise_date": "2026-08-07", "confidence": 0.9}
 
-    intent, promise_at, confidence, used_model = interpret("main dekhta hoon", NOW, Reader())
+    intent, promise_at, _confidence, used_model = interpret("main dekhta hoon", NOW, Reader())
     assert used_model and intent is ReplyIntent.promise_to_pay
     assert promise_at is not None and promise_at.date().isoformat() == "2026-08-07"
 

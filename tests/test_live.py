@@ -54,7 +54,7 @@ class StubResource:
         self.created.append(payload)
         return {"id": "plink_created", "short_url": "https://rzp.io/i/new01", **payload}
 
-    def notifyBy(self, entity_id, medium):  # noqa: N802 - the SDK spells it this way
+    def notifyBy(self, entity_id, medium):  # the SDK spells it this way
         self.notified.append((entity_id, medium))
         return True
 
@@ -295,3 +295,61 @@ def test_a_failed_listing_does_not_claim_completeness():
     gateway = LiveGateway(client)
     assert gateway.failed_payments_since(datetime.now(IST)) == []
     assert gateway.last_fetch_complete is False
+
+
+def _poller(client, **kwargs):
+    from wapsi.core.policy import PolicyEngine
+    from wapsi.live.poller import LivePoller
+
+    return LivePoller(client, PolicyEngine.load(), **kwargs)
+
+
+def test_the_live_gateway_is_never_asked_for_a_charge_it_cannot_make(isolated_state):
+    """`supports_retry` was declared and never read, so the agent spent its budget on nothing."""
+
+    now = datetime.now(IST)
+    payment = {**FAILED_PAYMENT, "created_at": int((now - timedelta(minutes=5)).timestamp())}
+    poller = _poller(StubClient(payments=[payment]))
+    assert poller.gateway.supports_retry is False
+
+    poller.step(now)
+    case = poller.cases["live_pay_LIVE001"]
+
+    assert case.retries == 0, "test mode cannot charge; the planner must not pretend otherwise"
+    assert case.nudges == 1, "it should have fallen through to the action it can actually take"
+
+
+def test_a_case_that_arrived_by_webhook_is_adopted_by_a_running_poller(isolated_state):
+    """The poller loaded state once at construction, so webhook cases were invisible to it."""
+
+    from wapsi.api.app import _open_case_from_webhook
+
+    now = datetime.now(IST)
+    payment = {**FAILED_PAYMENT, "created_at": int((now - timedelta(minutes=5)).timestamp())}
+    # Started before the webhook arrives, exactly as `wapsi live watch` is.
+    poller = _poller(StubClient(payments=[]))
+
+    created = _open_case_from_webhook({"event": "payment.failed", "payload": {"payment": {"entity": payment}}})
+    assert created == "live_pay_LIVE001"
+
+    poller.step(now)
+    assert created in poller.cases, "a webhook case must be acted on, not just persisted"
+
+
+def test_a_waiting_case_says_so_rather_than_falling_silent(isolated_state):
+    """A deferral nobody can see is indistinguishable from the agent having stopped."""
+
+    now = datetime.now(IST)
+    payment = {**FAILED_PAYMENT, "created_at": int((now - timedelta(minutes=5)).timestamp())}
+    poller = _poller(StubClient(payments=[payment]))
+    poller.step(now)
+
+    case = poller.cases["live_pay_LIVE001"]
+    case.next_action_at = now + timedelta(days=1)
+    case.wait_reason = "waiting until 06 Sep 11:00 to SEND_REMINDER: the earliest permitted moment"
+
+    lines = poller.step(now)
+    reported = [line for line in lines if line.startswith(f"{case.id}: ")]
+    assert reported, f"a deferred case must still be reported, got {lines}"
+    # The planner's own words, not a restatement: it already names the time and the action.
+    assert case.wait_reason in reported[0]

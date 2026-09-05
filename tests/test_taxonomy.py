@@ -138,7 +138,7 @@ def test_the_notice_is_valued_by_the_retry_it_unlocks(make_case):
 
 def test_diagnosis_text_names_the_amount_and_reason(make_case):
     case = make_case()
-    cause, tags, text = diagnose(case)
+    cause, _tags, text = diagnose(case)
     assert cause is RootCause.INSUFFICIENT_FUNDS
     assert "1,299" in text
     assert "insufficient_funds" in text

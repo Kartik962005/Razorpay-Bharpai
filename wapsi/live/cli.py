@@ -11,6 +11,7 @@ from rich.table import Table
 
 from wapsi.config import IST, fingerprint, get_settings
 from wapsi.core.audit import AuditLog
+from wapsi.core.models import CaseStatus
 from wapsi.core.policy import PolicyEngine
 from wapsi.live import state
 from wapsi.live.poller import LivePoller
@@ -175,10 +176,13 @@ def watch(
             style = "green" if "RECOVERED" in line else ("dim" if "waiting" in line else "")
             console.print(f"[{style}]{now:%H:%M:%S}  {line}[/{style}]" if style else f"{now:%H:%M:%S}  {line}")
 
-        # Surface any link the agent just created, so it can be paid on camera.
+        # Surface any link the agent just created, so it can be paid on camera. Only for cases
+        # still open: offering a link for a case that has already been recovered is the exact
+        # confusion this system exists to prevent.
         for entry in audit.entries[-12:]:
             url = (entry.payload or {}).get("link")
-            if entry.kind == "result" and url:
+            case = poller.cases.get(entry.case_id)
+            if entry.kind == "result" and url and case and case.status is not CaseStatus.closed:
                 console.print(f"          [bold]pay this to close the case:[/bold] {url}")
 
         if once or time.time() > deadline:

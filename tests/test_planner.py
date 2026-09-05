@@ -123,3 +123,75 @@ def test_it_gives_up_when_nothing_is_left_to_try(engine, make_case):
     decision = plan(engine, spent)
     assert decision.action.type is ActionType.CLOSE
     assert decision.action.params["outcome"] == Outcome.gave_up.value
+
+
+class StubAdvisor:
+    """A model that answers with whatever it was constructed with."""
+
+    enabled = True
+
+    def __init__(self, proposal):
+        self.proposal = proposal
+
+    def advise_action(self, case, allowed, denied, replies):
+        return self.proposal
+
+
+def advise(engine, case, proposal, ctx=None):
+    from wapsi.core.planner import AgentPlanner
+
+    return AgentPlanner(engine, StubAdvisor(proposal)).plan(case, NOW, ctx or PolicyContext())
+
+
+def test_the_model_may_write_a_vocabulary_word_in_any_case(engine, make_case):
+    """Models capitalise. "Hinglish" means hinglish, and must not be treated as an error."""
+
+    case = make_case(root_cause=RootCause.INSUFFICIENT_FUNDS, amount_paise=150_000)
+    decision = advise(
+        engine,
+        case,
+        {"action": "SEND_PAYMENT_LINK", "language": "Hinglish", "channel": "SMS", "tone": "Soft"},
+    )
+
+    assert decision.action.type is ActionType.SEND_PAYMENT_LINK
+    assert decision.action.params["language"] == "hinglish"
+    assert decision.action.params["channel"] == "sms"
+    assert decision.action.params["tone"] == "soft"
+    assert case.llm_denials == 0
+
+    # "English" is the same language under another name. "Hindi" is not: this system writes
+    # Hinglish, and silently accepting Hindi would send Devanagari to someone never offered it.
+    case = make_case(root_cause=RootCause.INSUFFICIENT_FUNDS, amount_paise=150_000)
+    decision = advise(engine, case, {"action": "SEND_PAYMENT_LINK", "language": "English"})
+    assert decision.action.params["language"] == "en"
+    assert case.llm_denials == 0
+
+
+def test_a_vocabulary_the_system_does_not_know_is_refused_not_raised(engine, make_case):
+    """An unknown channel used to reach the cost table as a KeyError and end the whole run."""
+
+    for field, value in (("channel", "telegram"), ("language", "Hindi"), ("tone", "angry")):
+        case = make_case(root_cause=RootCause.INSUFFICIENT_FUNDS, amount_paise=150_000)
+        decision = advise(engine, case, {"action": "SEND_PAYMENT_LINK", field: value})
+
+        assert case.llm_denials == 1, f"{field}={value} should count against the model"
+        assert decision.verdict and value in decision.verdict
+        # The deterministic decision stands, so the case still progresses.
+        assert decision.action.type is not ActionType.WAIT
+
+
+def test_a_gateway_that_cannot_charge_is_never_asked_to(engine, make_case):
+    """Test mode has no server-side charge, and a retry there spends the action budget on air."""
+
+    case = make_case(root_cause=RootCause.TRANSIENT_TECH, amount_paise=129_900)
+
+    assert plan(engine, case).action.type is ActionType.RETRY_CHARGE
+
+    no_retry = PolicyContext(extra={"retry_available": False})
+    decision = plan(engine, case, ctx=no_retry)
+    assert decision.action.type is not ActionType.RETRY_CHARGE
+    assert decision.action.type in (
+        ActionType.SEND_PAYMENT_LINK,
+        ActionType.OFFER_METHOD_SWITCH,
+        ActionType.WAIT,
+    )

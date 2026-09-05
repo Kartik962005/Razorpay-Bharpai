@@ -246,13 +246,21 @@ wapsi simulate --n 500
 ```
 
 No keys needed. That prints the comparison table and writes `results/report.md`,
-`results/summary.json` and a full audit log per policy.
+`results/summary.json` and a full audit log per policy. Note that it *overwrites* the committed
+results with whatever policies you ran — `git checkout -- results/` puts them back.
 
 ```bash
 wapsi rules                     # every bound, with its rule id
 wapsi case case_0134            # one case's complete audit timeline
-wapsi sensitivity               # re-run with priors scaled ±30%
 wapsi serve                     # dashboard on :8000, plus the webhook endpoint
+
+# The exact commands behind the two committed result files:
+wapsi simulate --n 500 --policies do_nothing,platform,naive,rules
+wapsi sensitivity --policies do_nothing,platform,naive,rules
+
+# And the model-advised row, the only one that needs a key. Any OpenAI-compatible
+# endpoint; `advisor_sample` is recorded in summary.json so a rerun matches.
+wapsi simulate --n 500 --policies do_nothing,platform,naive,rules,agent --advisor-sample 0.05
 ```
 
 ### Live mode, against a real Razorpay test account
@@ -297,8 +305,21 @@ creates a real recovery link you can see in your dashboard.
   the fallback are for, and the report prints these numbers for every run rather than leaving them
   to be discovered.
 - **Retries cannot be demonstrated live.** Test mode has no server-side charge endpoint, so
-  `retry_charge` reports that plainly instead of faking it, and live mode shows recovery links
-  where the batch shows silent retries.
+  `retry_charge` reports that plainly instead of faking it, the planner stops proposing retries
+  once the gateway says it cannot make them, and live mode shows recovery links where the batch
+  shows silent retries.
+- **Live messages are composed, priced and logged — not delivered.** There is no SMS or WhatsApp
+  provider wired in. The recovery link is real and appears in the Razorpay dashboard; the message
+  that would carry it is written, guardrail-checked, costed and put in the audit log. Sending it
+  is one adapter, and it is the one adapter this repo does not have.
+- **Live mode has no inbound channel.** Replies are read in the batch, where the simulated
+  customer writes back. Nothing live can receive an opt-out, a promise to pay or a complaint, so
+  the rules that depend on reading a reply (R02, R32, R41) are exercised by the batch and the
+  tests, never by the live loop.
+- **The seeded invoice is overdue by construction.** Test mode will not create an invoice with a
+  due date in the past, so the poller marks the seeded one overdue when it ingests it. The
+  receivables *rules* are then real — the 19:00 window, the 72-hour spacing — but the overdue
+  condition that triggers them is arranged rather than observed.
 - **Abandoned checkouts are our weakest class** (12% against a 9% baseline). The TRAI window costs
   us the golden first hour after abandonment, and we accept that rather than message at 03:00.
 - **Overdue receivables are a tie with the naive policy** (65% vs 66%) — which reaches that number

@@ -113,7 +113,7 @@ clean.
 
 What it cost me was about two hours, and what it taught me was worth more. A policy engine that
 only answers "no" is not enough for anything that plans; it has to answer "not until". I went back
-through all 41 rules and separated the genuinely permanent bars — a blocked instrument, a spent
+through all 26 rules and separated the genuinely permanent bars — a blocked instrument, a spent
 budget, an opt-out — from the temporary ones, and made the temporary ones say when. That
 distinction is now what the planner is built around, and it came out of a bug rather than a design
 session.

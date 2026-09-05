@@ -71,7 +71,7 @@ class DoNothingPlanner:
                     params={"platform": True},
                 )
                 action.cost_paise = self.policy.cost_of(action)
-                return Decision(action, [], "platform retry ladder (T+%d)" % (case.retries + 1))
+                return Decision(action, [], f"platform retry ladder (T+{case.retries + 1})")
             return _wait(case, due, "waiting for the platform's next scheduled retry")
 
         if now >= deadline:

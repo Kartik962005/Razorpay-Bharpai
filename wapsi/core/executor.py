@@ -102,6 +102,7 @@ class Executor:
         if action.type is ActionType.WAIT:
             case.next_action_at = action.scheduled_at
             case.status = CaseStatus.waiting
+            case.wait_reason = rationale or None
             self.audit.record(
                 ts=now,
                 case_id=case.id,
@@ -213,7 +214,11 @@ class Executor:
             expire_by=now + LINK_VALIDITY,
             method_hint=method_hint,
         )
-        case.razorpay["payment_link_id"] = link["id"]
+        # Recorded under its own key rather than overwriting whatever link the payment
+        # originally came from: `refresh` checks the recovery link first precisely because it
+        # supersedes the original, and it can only do that if both ids survive.
+        case.razorpay["recovery_link_id"] = link["id"]
+        case.razorpay["recovery_link_url"] = link["short_url"]
 
         composed = self.composer.compose(case, action, link["short_url"], now)
         ctx = build_context(case, action, link["short_url"], self.policy.policy)
@@ -229,7 +234,10 @@ class Executor:
                 actor="policy",
                 summary="message rejected by guardrails, using template instead",
                 rule_ids=["R40"],
-                payload={"failures": check.failures},
+                # The text is kept because a rejection is only diagnosable with it: three
+                # rejections once turned out to be the validator's own false positives, and
+                # that was invisible from the failure list alone.
+                payload={"failures": check.failures, "rejected_text": composed.text},
             )
             composed.text = render(
                 ctx,

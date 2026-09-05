@@ -116,6 +116,11 @@ class AuditEntry(BaseModel):
 Persistence: in `sim` mode everything is in memory + JSONL audit files. In `live` mode use SQLite
 via SQLModel (`wapsi.db`) for cases/actions and the same JSONL audit. Do not over-engineer.
 
+> **Departed from.** Live mode persists to JSON files under `.live/` instead — `cases.json`,
+> `cursor.json`, `messages.json` and the JSONL audit. A database bought nothing at this scale and
+> cost inspectability: the state a reviewer most wants to read is a file they can open. `wapsi.db`
+> was never created and SQLModel is not a dependency.
+
 ## 3. Taxonomy (`core/taxonomy.py`)
 
 `REASON_TO_CAUSE: dict[str, RootCause]` — exact keys from Razorpay's error list:

@@ -138,7 +138,8 @@ class LiveGateway:
             link = self.client.payment_link.create(payload)
             self._record("payment_link.create", True, started, link.get("id", ""))
             return link
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
+            # Re-raised, so this is not a blind catch — it exists to record the latency.
             self._record("payment_link.create", False, started, str(exc))
             raise
 

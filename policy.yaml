@@ -89,18 +89,24 @@ escalation:
 promise_grace_days: 1            # R41
 
 validator:                       # R40
+  # Matched as whole words. An ALL-CAPS entry is matched case-sensitively, which is what keeps
+  # the initialism FIR (a police complaint) banned while the Hinglish "fir se" — *again* —
+  # stays usable. Word variants are listed rather than matched by prefix, so that "court" does
+  # not fire on "courtesy".
   banned_patterns:
     - "legal action"
     - "police"
     - "court"
-    - "fir "
+    - "FIR"
     - "credit score"
     - "cibil"
     - "blacklist"
     - "last warning"
     - "or else"
+    - "consequence"
     - "consequences"
     - "fraud"
+    - "fraudulent"
     - "seize"
     - "recovery agent"
   required:

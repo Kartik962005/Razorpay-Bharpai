@@ -268,9 +268,12 @@ class CustomerModel:
 
         # NPCI execution windows are enforced by the rails, not by us: a mandate attempted in
         # the peak simply fails, however sensible the attempt looked.
-        if case.scenario is Scenario.C and self.world.in_npci_peak(now):
-            if rng.random() < self.world.npci_peak_failure_probability:
-                return Reaction(paid=False)
+        if (
+            case.scenario is Scenario.C
+            and self.world.in_npci_peak(now)
+            and rng.random() < self.world.npci_peak_failure_probability
+        ):
+            return Reaction(paid=False)
 
         probability = self.probability(case, ActionType.RETRY_CHARGE, now)
         if rng.random() < probability:

@@ -219,11 +219,12 @@ class Runner:
         # Anything still open when the horizon ends simply ran out of time.
         for case in cases.values():
             if case.status is not CaseStatus.closed:
+                # Read the status before overwriting it: a case still sitting with a human at
+                # the horizon is unresolved, not expired, and the two are different outcomes.
+                unresolved = case.status is CaseStatus.escalated
                 case.status = CaseStatus.closed
                 case.outcome = (
-                    Outcome.escalated_unresolved
-                    if case.status is CaseStatus.escalated
-                    else Outcome.expired
+                    Outcome.escalated_unresolved if unresolved else Outcome.expired
                 )
                 case.closed_at = self.world.end
 
@@ -238,7 +239,7 @@ class Runner:
             seed=self.world.seed,
             wall_seconds=time.perf_counter() - started,
             events_processed=events,
-            llm_stats={**getattr(composer, "stats", lambda: {})(), "replies": reply_stats},
+            llm_stats={**getattr(composer, "stats", dict)(), "replies": reply_stats},
         )
 
     # -- the loop, one event at a time --------------------------------------------------------

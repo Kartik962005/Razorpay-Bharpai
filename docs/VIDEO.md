@@ -117,10 +117,14 @@ A live case id reads the live trail automatically — same command as the batch 
 > scheduled for 10:00 and recorded the rule that stopped it.
 >
 > 10:07 this morning, the window opened and it acted within seconds — created a real payment link
-> in the account and sent it. I paid it.
+> in the account, wrote the message, priced it, logged it. There is no SMS provider wired in, so I
+> opened that link from the audit log myself and paid it.
 >
 > 10:13 — before acting again it refetched the status, found the money, and stopped. Rule R01.
 > Eighty paise, one message, ₹1,299 recovered."
+
+Say the delivery gap out loud. It is one adapter, they will spot it in the code in a minute, and
+owning it costs nothing next to being caught claiming an SMS that never left.
 
 Then show the agent still holding a live case:
 
@@ -181,6 +185,10 @@ cat results/live_recovery.md
 
 The committed trail is the same evidence, and say plainly that you are reading the recorded run.
 `wapsi simulate --n 60` gives the whole batch story in three seconds if you need to fill.
+
+**After recording, run `git checkout -- results/`.** Any `wapsi simulate` on camera overwrites
+`results/` with only the policies you ran, which silently drops the model-advised row and the
+model statistics from the committed evidence.
 
 ## What not to do
 

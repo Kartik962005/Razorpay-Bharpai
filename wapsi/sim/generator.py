@@ -11,7 +11,7 @@ cases at once. That is what makes the per-customer messaging cap (R23) mean anyt
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from wapsi.core.models import Case, Channel, ErrorTriple, Language, Method, RootCause, Scenario

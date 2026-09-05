@@ -174,6 +174,9 @@ class Case(BaseModel):
 
     last_contact_at: datetime | None = None
     next_action_at: datetime | None = None
+    #: Why this case is waiting, in the planner's own words. Persisted with the case so a
+    #: long-running loop can report a deferral it decided on in an earlier process.
+    wait_reason: str | None = None
     predebit_notice_at: datetime | None = None
     last_retry_at: datetime | None = None
     retry_times: list[datetime] = Field(default_factory=list)

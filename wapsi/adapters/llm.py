@@ -16,6 +16,7 @@ Any OpenAI-compatible endpoint works; the model id lives only in the environment
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
@@ -287,10 +288,9 @@ class LLM:
                 # difference between waiting once and failing repeatedly.
                 headers = getattr(getattr(exc, "response", None), "headers", None)
                 if headers is not None:
-                    try:
+                    # Best effort: a provider that reports no headroom is not an error.
+                    with contextlib.suppress(Exception):
                         self._note_headroom(headers)
-                    except Exception:  # noqa: BLE001
-                        pass
                 retryable = "429" in str(exc) or "rate" in str(exc).lower()
                 if retryable and attempt < len(BACKOFF_SECONDS):
                     # Wait for the window the provider just told us about, not a fixed guess.

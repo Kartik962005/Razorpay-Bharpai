@@ -116,7 +116,7 @@ class World:
         days = (self.end - self.start).days
         count = max(1, round(spec["episodes_per_week"] * days / 7))
         methods = ["upi", "card", "netbanking", "upi_autopay"]
-        for index in range(count):
+        for _ in range(count):
             offset_minutes = rng.randrange(0, max(1, days * 24 * 60))
             start = self.start + timedelta(minutes=offset_minutes)
             duration = rng.randint(int(spec["min_minutes"]), int(spec["max_minutes"]))

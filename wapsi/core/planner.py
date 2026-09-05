@@ -16,9 +16,33 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from wapsi.core import taxonomy
-from wapsi.core.models import Action, ActionType, Case, CaseStatus, Outcome, RootCause
+from wapsi.core.models import (
+    Action,
+    ActionType,
+    Case,
+    CaseStatus,
+    Channel,
+    Language,
+    Outcome,
+    RootCause,
+    Tone,
+)
 from wapsi.core.policy import PolicyContext, PolicyEngine
 from wapsi.core.timing import is_salary_window
+
+#: The fields the model may set on an action, and the vocabulary each one is held to. A model
+#: that writes "Hinglish" or "SMS" means the right thing and is normalised; one that invents
+#: "telegram" or "Hindi" is refused, because the alternative is an unhandled exception mid-run.
+OVERRIDABLE: dict[str, type[Channel] | type[Tone] | type[Language]] = {
+    "channel": Channel,
+    "tone": Tone,
+    "language": Language,
+}
+
+#: Names for the same thing. Deliberately short: "English" is the language `en` under another
+#: name, but "Hindi" is not — this system writes Hinglish, and quietly treating one as the other
+#: would send Devanagari to a customer who was never offered it.
+SYNONYMS = {"english": "en", "eng": "en", "text": "sms", "whats app": "whatsapp"}
 
 #: How far ahead to look. Beyond three days the age decay dominates and waiting never wins.
 HORIZONS = (
@@ -76,6 +100,19 @@ class RulesPlanner:
             current = snapped
         return None
 
+    @staticmethod
+    def _available(action_type: ActionType, ctx: PolicyContext) -> bool:
+        """Can the gateway underneath perform this action at all?
+
+        Distinct from whether the policy permits it. Test mode has no server-side charge
+        endpoint, so proposing a retry there spends the case's action budget on something that
+        cannot happen. The batch's gateway can retry, so this only ever narrows the live path.
+        """
+
+        if action_type is ActionType.RETRY_CHARGE:
+            return bool(ctx.extra.get("retry_available", True))
+        return True
+
     def _score(self, case: Case, action: Action, moment: datetime, now: datetime) -> float:
         probability = taxonomy.prior(
             case,
@@ -97,6 +134,8 @@ class RulesPlanner:
         deadline = case.created_at + timedelta(days=self.policy.max_age_days(case))
 
         for action_type in taxonomy.candidate_actions(case):
+            if not self._available(action_type, ctx):
+                continue
             for horizon in HORIZONS:
                 moment = now + horizon
                 if moment > deadline:
@@ -128,7 +167,7 @@ class RulesPlanner:
                 ["R05"],
                 "risk declined this payment; a human must review it and no retry is permitted",
             )
-        if case.root_cause is RootCause.MERCHANT_CONFIG and not case.merchant_alerted:  # noqa: SIM102
+        if case.root_cause is RootCause.MERCHANT_CONFIG and not case.merchant_alerted:
             return Decision(
                 Action(case_id=case.id, type=ActionType.ALERT_MERCHANT, scheduled_at=now),
                 ["R06"],
@@ -247,6 +286,7 @@ class AgentPlanner(RulesPlanner):
             return decision
 
         allowed, denied = self.policy.allowed(case, now, ctx)
+        allowed = [a for a in allowed if self._available(a.type, ctx)]
         if len(allowed) < 2:
             # With one legal move there is nothing to advise on, and a call would be wasted.
             return decision
@@ -270,10 +310,21 @@ class AgentPlanner(RulesPlanner):
             return decision
 
         action = match.model_copy(deep=True)
-        for field_name in ("channel", "tone", "language"):
+        for field_name, vocabulary in OVERRIDABLE.items():
             value = proposal.get(field_name)
-            if value and field_name in action.params:
-                action.params[field_name] = str(value)
+            if not value or field_name not in action.params:
+                continue
+            spoken = str(value).strip().lower()
+            try:
+                action.params[field_name] = vocabulary(SYNONYMS.get(spoken, spoken)).value
+            except ValueError:
+                # An unknown channel would reach the cost table as a KeyError and an unknown
+                # tone or language the enum as a ValueError, killing the run. Treat it as what
+                # it is — the model failing the contract — and let R34 escalate a repeat.
+                case.llm_denials += 1
+                decision.proposal = proposal
+                decision.verdict = f"denied: {value!r} is not a {field_name} this system knows"
+                return decision
         action.cost_paise = self.policy.cost_of(action)
 
         breaches = self.policy.check_all(action, case, now, ctx)

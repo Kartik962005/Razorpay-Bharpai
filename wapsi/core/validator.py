@@ -13,12 +13,28 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import cache
 from typing import Any
 
 from wapsi.adapters.templates import MessageContext
 
 #: Internal identifiers: enum members, error codes, rule ids. A customer should never see one.
 JARGON = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
+
+
+@cache
+def _banned(phrase: str) -> re.Pattern[str]:
+    """Compile one banned phrase into a whole-word matcher.
+
+    Substring matching read "courtesy" as a threat of "court", and the Hinglish "fir se"
+    (*again*) as an FIR — a police complaint. Word boundaries fix the first. The second needs
+    case as well, since the threat is an initialism and the ordinary word is not, so an
+    all-caps phrase in ``policy.yaml`` is matched case-sensitively and everything else is not.
+    """
+
+    phrase = phrase.strip()
+    flags = 0 if phrase.isupper() else re.IGNORECASE
+    return re.compile(rf"\b{re.escape(phrase)}\b", flags)
 
 
 @dataclass
@@ -43,7 +59,7 @@ def validate(text: str, ctx: MessageContext, policy: dict[str, Any]) -> Validati
     lowered = text.lower()
 
     for pattern in rules["banned_patterns"]:
-        if pattern.lower() in lowered:
+        if _banned(pattern).search(text):
             failures.append(f"banned phrase: {pattern.strip()!r}")
 
     required = set(rules["required"])

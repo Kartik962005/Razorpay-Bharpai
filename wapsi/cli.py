@@ -126,7 +126,16 @@ def simulate(
     metrics_mod.write_summary(
         out / "summary.json",
         collected,
-        {"n": n, "seed": seed, "scale": scale, "policies": names},
+        {
+            "n": n,
+            "seed": seed,
+            "scale": scale,
+            "policies": names,
+            # Recorded so the model-advised row can be reproduced exactly rather than
+            # approximately: it is the one figure a rerun cannot recover from the output.
+            "advisor_sample": advisor_sample,
+            "model": llm.settings.llm_model if llm is not None and llm.enabled else None,
+        },
     )
     if not quiet:
         console.print(f"[green]wrote[/green] {out / 'report.md'} and {out / 'summary.json'}")
@@ -487,7 +496,7 @@ def serve(
 
     settings = get_settings()
     console.print(f"[bold]dashboard[/bold]  http://{host}:{port}/")
-    console.print(f"[bold]webhook[/bold]    POST /webhooks/razorpay (and / as a fallback)")
+    console.print("[bold]webhook[/bold]    POST /webhooks/razorpay (and / as a fallback)")
     console.print(f"[dim]webhook secret loaded: {fingerprint(settings.razorpay_webhook_secret)}[/dim]")
     if not settings.razorpay_webhook_secret:
         console.print("[yellow]no webhook secret set — deliveries will be rejected[/yellow]")
