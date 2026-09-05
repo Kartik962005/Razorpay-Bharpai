@@ -72,6 +72,24 @@ payment never causes a chargeback, and the chargeback fee is zero. **Wapsi still
 against ₹18.0L for the naive policy and ₹15.4L for Razorpay's own defaults.** The result does not
 depend on the simulation punishing carelessness. See [`results/sensitivity.md`](results/sensitivity.md).
 
+### It also works on a real account
+
+Not the simulation — a genuine payment on a Razorpay test-mode account, failed by hand and
+recovered by the agent fourteen hours later. Four lines from
+[`results/live_recovery.md`](results/live_recovery.md):
+
+```
+04 Sep 23:24  observation  detected on Razorpay: payment_failed, ₹1,299 on netbanking
+04 Sep 23:25  verdict      waiting until 05 Sep 10:00 to SEND_PAYMENT_LINK (expected ₹428)
+05 Sep 10:07  action       sent whatsapp in en, tone helpful
+05 Sep 10:13  outcome      payment already received; stopping before acting  [R01]
+```
+
+The second line is the one to read twice. The agent knows the payment is worth ₹428 and refuses to
+send anything, because it is 23:25 and TRAI permits customer messaging between 10:00 and 21:00. It
+waits, acts the moment the window opens, and when the money arrives it refetches before acting
+again and stops. Eighty paise, one message, ₹1,299 recovered.
+
 ---
 
 ## How it works
