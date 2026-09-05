@@ -24,7 +24,7 @@ starts with the package name, so a rename after the fact means recording again.
    command. In PowerShell both the full path and the leading `.\` matter — without them you
    get `CommandNotFoundException`:
    ```
-   cd C:\Users\karti\.claude\projects\Razorpay
+   cd C:\Users\karti\Projects\Bharpai
    .\.venv\Scripts\Activate.ps1
    ```
    The prompt should then begin with `(.venv)`. If activation is ever refused, every command
@@ -304,7 +304,7 @@ pytest
 **Start it, then say the closing lines over the dots.** It takes about twenty seconds and the count
 lands as you finish:
 
-> "215 tests, no network, CI on Linux and Windows with no keys. Clone it, `pip install -e`,
+> "216 tests, no network, CI on Linux and Windows with no keys. Clone it, `pip install -e`,
 > `bharpai simulate` — no key needed, and it reproduces every number I just showed you. The model is
 > optional throughout: without one it runs on templates and pattern matching, and the batch result
 > is identical."

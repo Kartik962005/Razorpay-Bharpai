@@ -356,5 +356,5 @@ bharpai/sim/        world · customer · generator · runner · baselines · con
 bharpai/live/       seed · poller · webhook · state
 bharpai/api/        FastAPI app + dashboard
 policy.yaml       every bound, in one file
-tests/            215 tests
+tests/            216 tests
 ```
