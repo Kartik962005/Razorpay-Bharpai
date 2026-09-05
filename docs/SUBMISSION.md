@@ -20,7 +20,7 @@ your own voice before pasting; they are drafts, not a script.
 
 **Track** — 03, AI Revenue Recovery
 
-**Project name** — Wapsi
+**Project name** — Bharpai
 
 **GitHub repo** — https://github.com/Kartik962005/Razorpay-Wapsi-
 
@@ -37,7 +37,7 @@ default everywhere is a fixed retry ladder and a fixed reminder cadence, which t
 twenty-minute bank outage, a blocked card and a mistyped CVV as the same event. Retrying into an
 outage is measurably worse than doing nothing.
 
-Wapsi reads Razorpay's own failure signals — `error_reason`, `error_source`, `error_step` — and
+Bharpai reads Razorpay's own failure signals — `error_reason`, `error_source`, `error_step` — and
 maps roughly 150 documented reasons onto 12 root causes. It then picks the intervention that fits
 that cause and the moment to take it, inside hard bounds: TRAI messaging hours, RBI's fair
 practices window, NPCI execution windows, the ₹15,000 authentication threshold, per-customer
@@ -69,7 +69,7 @@ them, and there I found something much worse.
 The guard that stops the agent chasing someone who has already paid did not work on the live path.
 A case created from a failed payment carries an *order* id; the check looked only at payment links,
 invoices and subscriptions. So if a customer went back and paid the original link, the order would
-settle and Wapsi would keep messaging them. That is precisely the failure this project exists to
+settle and Bharpai would keep messaging them. That is precisely the failure this project exists to
 prevent, sitting in my own code, on the only path that touches real money.
 
 What actually unsettled me is that my test suite could never have caught it. In the simulation the

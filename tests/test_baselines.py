@@ -1,20 +1,20 @@
 """The baselines have to be fair, or the comparison is worthless.
 
 The platform baseline in particular is what a reviewer should demand: not a caricature of bad
-automation, but Razorpay's own defaults. If Wapsi cannot beat that, the rest is noise.
+automation, but Razorpay's own defaults. If Bharpai cannot beat that, the rest is noise.
 """
 
 from __future__ import annotations
 
 from datetime import timedelta
 
-from wapsi.core.metrics import compute
-from wapsi.core.models import ActionType, Method, RootCause, Scenario
-from wapsi.core.policy import PolicyContext, PolicyEngine
-from wapsi.sim.baselines import PLATFORM_LADDER, PLATFORM_REMINDERS, PlatformPlanner
-from wapsi.sim.generator import generate
-from wapsi.sim.runner import Runner
-from wapsi.sim.world import HOSTILE_ASSUMPTIONS, World, apply_overrides, load_config
+from bharpai.core.metrics import compute
+from bharpai.core.models import ActionType, Method, RootCause, Scenario
+from bharpai.core.policy import PolicyContext, PolicyEngine
+from bharpai.sim.baselines import PLATFORM_LADDER, PLATFORM_REMINDERS, PlatformPlanner
+from bharpai.sim.generator import generate
+from bharpai.sim.runner import Runner
+from bharpai.sim.world import HOSTILE_ASSUMPTIONS, World, apply_overrides, load_config
 
 from tests.conftest import NOW
 

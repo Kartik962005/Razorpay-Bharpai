@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from wapsi.adapters.templates import MessageContext, render
-from wapsi.core.models import Channel, Language, RootCause, Scenario, Tone
-from wapsi.core.validator import validate
+from bharpai.adapters.templates import MessageContext, render
+from bharpai.core.models import Channel, Language, RootCause, Scenario, Tone
+from bharpai.core.validator import validate
 
 LINK = "https://rzp.io/i/abc123"
 

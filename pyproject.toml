@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wapsi"
+name = "bharpai"
 version = "0.1.0"
 description = "Cause-aware, bounded revenue recovery for Razorpay merchants"
 readme = "README.md"
@@ -30,13 +30,13 @@ dependencies = [
 dev = ["pytest>=8.0"]
 
 [project.scripts]
-wapsi = "wapsi.cli:app"
+bharpai = "bharpai.cli:app"
 
 [tool.setuptools.packages.find]
-include = ["wapsi*"]
+include = ["bharpai*"]
 
 [tool.setuptools.package-data]
-wapsi = ["sim/*.yaml", "api/static/*"]
+bharpai = ["sim/*.yaml", "api/static/*"]
 
 [tool.ruff]
 line-length = 100

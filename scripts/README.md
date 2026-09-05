@@ -8,4 +8,4 @@ Two helpers that are not part of the package.
   makes Razorpay deliver a real `payment_link.cancelled` webhook. Useful for proving a tunnel and
   a signature end to end without paying for anything.
 
-Everything else that used to live here is now `wapsi live doctor` and `wapsi serve`.
+Everything else that used to live here is now `bharpai live doctor` and `bharpai serve`.

@@ -10,11 +10,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-from wapsi.adapters.razorpay_live import LiveGateway
-from wapsi.config import IST
-from wapsi.core.models import Method, RootCause, Scenario
-from wapsi.core.taxonomy import diagnose
-from wapsi.live.poller import case_from_payment
+from bharpai.adapters.razorpay_live import LiveGateway
+from bharpai.config import IST
+from bharpai.core.models import Method, RootCause, Scenario
+from bharpai.core.taxonomy import diagnose
+from bharpai.live.poller import case_from_payment
 
 FAILED_PAYMENT = {
     "id": "pay_LIVE001",
@@ -140,10 +140,10 @@ def test_a_recovery_link_is_tagged_back_to_its_case():
     gateway.create_payment_link(case, now, description="retry", expire_by=now + timedelta(days=3))
 
     payload = client.payment_link.created[0]
-    assert payload["notes"]["wapsi_case_id"] == case.id
+    assert payload["notes"]["bharpai_case_id"] == case.id
     assert payload["notes"]["root_cause"] == "TRANSIENT_TECH"
     assert payload["amount"] == case.amount_paise
-    # Wapsi owns the reminder cadence; the platform's own would break the policy caps.
+    # Bharpai owns the reminder cadence; the platform's own would break the policy caps.
     assert payload["reminder_enable"] is False
     assert payload["notify"] == {"sms": False, "email": False}
 
@@ -298,8 +298,8 @@ def test_a_failed_listing_does_not_claim_completeness():
 
 
 def _poller(client, **kwargs):
-    from wapsi.core.policy import PolicyEngine
-    from wapsi.live.poller import LivePoller
+    from bharpai.core.policy import PolicyEngine
+    from bharpai.live.poller import LivePoller
 
     return LivePoller(client, PolicyEngine.load(), **kwargs)
 
@@ -322,11 +322,11 @@ def test_the_live_gateway_is_never_asked_for_a_charge_it_cannot_make(isolated_st
 def test_a_case_that_arrived_by_webhook_is_adopted_by_a_running_poller(isolated_state):
     """The poller loaded state once at construction, so webhook cases were invisible to it."""
 
-    from wapsi.api.app import _open_case_from_webhook
+    from bharpai.api.app import _open_case_from_webhook
 
     now = datetime.now(IST)
     payment = {**FAILED_PAYMENT, "created_at": int((now - timedelta(minutes=5)).timestamp())}
-    # Started before the webhook arrives, exactly as `wapsi live watch` is.
+    # Started before the webhook arrives, exactly as `bharpai live watch` is.
     poller = _poller(StubClient(payments=[]))
 
     created = _open_case_from_webhook({"event": "payment.failed", "payload": {"payment": {"entity": payment}}})

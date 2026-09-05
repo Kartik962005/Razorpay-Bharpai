@@ -11,11 +11,11 @@ link = client.payment_link.create(
     {
         "amount": 1000,
         "currency": "INR",
-        "description": "Wapsi webhook probe",
-        "reference_id": f"wapsi-probe-{int(time.time())}",
+        "description": "Bharpai webhook probe",
+        "reference_id": f"bharpai-probe-{int(time.time())}",
         "notify": {"sms": False, "email": False},
         "reminder_enable": False,
-        "notes": {"wapsi": "webhook-probe"},
+        "notes": {"bharpai": "webhook-probe"},
     }
 )
 print("created payment link:", link["id"], link.get("short_url"))

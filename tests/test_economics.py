@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from wapsi.core.models import Action, ActionType, Channel, RootCause
+from bharpai.core.models import Action, ActionType, Channel, RootCause
 
 from tests.conftest import NOW
 
@@ -52,7 +52,7 @@ def test_retries_and_escalations_are_priced(engine, make_case):
 def test_expected_value_beats_cost_for_a_healthy_case(engine, make_case, ctx):
     """The planner's rule is EV > cost; check the inputs make that possible at all."""
 
-    from wapsi.core.taxonomy import prior
+    from bharpai.core.taxonomy import prior
 
     case = make_case(root_cause=RootCause.CUSTOMER_INPUT, amount_paise=129_900)
     allowed, _ = engine.allowed(case, NOW, ctx)

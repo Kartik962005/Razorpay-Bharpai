@@ -1,7 +1,7 @@
 """Every command runs.
 
 The unit tests exercise the engine directly and never invoke the CLI, which is how a rename left
-a dead reference on the exit path of `wapsi live watch` — invisible to 177 passing tests and
+a dead reference on the exit path of `bharpai live watch` — invisible to 177 passing tests and
 fatal the moment someone ran it. These are cheap smoke tests against that whole class of miss.
 """
 
@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from wapsi.cli import app
+from bharpai.cli import app
 
 runner = CliRunner()
 
@@ -64,7 +64,7 @@ def test_a_small_batch_runs_end_to_end(tmp_path):
 def test_case_explains_how_to_produce_a_missing_log(tmp_path):
     result = runner.invoke(app, ["case", "case_0001", "--out", str(tmp_path)])
     assert result.exit_code == 1
-    assert "wapsi simulate" in result.output
+    assert "bharpai simulate" in result.output
 
 
 def test_live_reset_touches_only_local_state(isolated_state):
@@ -80,8 +80,8 @@ def test_a_live_case_id_reads_the_live_trail(isolated_state):
 
     from datetime import datetime
 
-    from wapsi.config import IST
-    from wapsi.core.audit import AuditLog
+    from bharpai.config import IST
+    from bharpai.core.audit import AuditLog
 
     audit = AuditLog(isolated_state / "audit.jsonl")
     audit.record(
@@ -101,7 +101,7 @@ def test_a_live_case_id_reads_the_live_trail(isolated_state):
 def test_an_unknown_live_case_says_how_to_produce_one(isolated_state):
     result = runner.invoke(app, ["case", "live_pay_NOPE"])
     assert result.exit_code == 1
-    assert "wapsi live watch" in result.output
+    assert "bharpai live watch" in result.output
 
 
 def test_the_results_table_never_truncates_the_numbers_it_exists_to_show():
@@ -111,7 +111,7 @@ def test_the_results_table_never_truncates_the_numbers_it_exists_to_show():
     characters. Everything dropped is still in report.md and summary.json.
     """
 
-    from wapsi.cli import CONSOLE_COLUMNS, _fit
+    from bharpai.cli import CONSOLE_COLUMNS, _fit
 
     rows = [
         {

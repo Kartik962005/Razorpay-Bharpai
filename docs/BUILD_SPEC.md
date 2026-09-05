@@ -1,4 +1,4 @@
-# Wapsi — build specification
+# Bharpai — build specification
 
 This is the executable plan. Read `DESIGN.md` for the *why*; this file is the *what and how*,
 precise enough to build from top to bottom without re-deriving decisions. When something here
@@ -26,10 +26,10 @@ conflicts with reality (an API behaves differently, a rate limit bites), fix it,
 ```
 Razorpay-Wapsi-/
   README.md                     # pitch, results table, run-in-3-commands, honesty section
-  pyproject.toml                # package `wapsi`, console script `wapsi = wapsi.cli:app`
+  pyproject.toml                # package `bharpai`, console script `bharpai = bharpai.cli:app`
   policy.yaml                   # every bound and stopping rule, with rule ids
   .env.example  .gitignore
-  wapsi/
+  bharpai/
     __init__.py
     config.py                   # pydantic-settings: env, paths, IST tz
     core/
@@ -114,11 +114,11 @@ class AuditEntry(BaseModel):
 ```
 
 Persistence: in `sim` mode everything is in memory + JSONL audit files. In `live` mode use SQLite
-via SQLModel (`wapsi.db`) for cases/actions and the same JSONL audit. Do not over-engineer.
+via SQLModel (`bharpai.db`) for cases/actions and the same JSONL audit. Do not over-engineer.
 
 > **Departed from.** Live mode persists to JSON files under `.live/` instead — `cases.json`,
 > `cursor.json`, `messages.json` and the JSONL audit. A database bought nothing at this scale and
-> cost inspectability: the state a reviewer most wants to read is a file they can open. `wapsi.db`
+> cost inspectability: the state a reviewer most wants to read is a file they can open. `bharpai.db`
 > was never created and SQLModel is not a dependency.
 
 ## 3. Taxonomy (`core/taxonomy.py`)
@@ -241,7 +241,7 @@ Validate: `action_id ∈ allowed`; overrides must pass `policy.check` again. If 
 can never widen the action set — only pick within it and shape the message.
 
 **DoNothingPlanner**: never acts, except scenario C where the platform's own T+1/T+2/T+3 retry
-ladder runs (that is what happens without Wapsi; say so in the README).
+ladder runs (that is what happens without Bharpai; say so in the README).
 **NaivePlanner** (what most merchants do): on failure retry the same instrument 3× at +0, +5 min,
 +15 min regardless of cause or window; then one SMS reminder at +1 h regardless of hour; for D,
 an email every 3 days forever. No stops. Its audit log is scored by `policy.violations()`.
@@ -255,7 +255,7 @@ an email every 3 days forever. No stops. Its audit log is scored by `policy.viol
      the intent and create a recovery link because test mode cannot charge programmatically —
      document this honestly).
    - SEND_PAYMENT_LINK / OFFER_METHOD_SWITCH / REQUEST_REAUTH → `gateway.create_payment_link(...)`
-     with `notes={"wapsi_case_id": id, "root_cause": ...}`, `reminder_enable=False` (Wapsi owns
+     with `notes={"bharpai_case_id": id, "root_cause": ...}`, `reminder_enable=False` (Bharpai owns
      reminders), `expire_by = now + 3 days`; then `messenger.send(channel, text, cost)`.
    - SEND_REMINDER → live: `notify_by/{sms|email}` on the invoice/link; fake: messenger.
    - ESCALATE_HUMAN → `humanqueue.create(case, brief)`; case → escalated.
@@ -378,14 +378,14 @@ Table 4 — sensitivity: priors ×0.7 / ×1.0 / ×1.3 → net ₹ per policy; fl
 ## 10. CLI (`cli.py`, typer)
 
 ```
-wapsi simulate --n 500 --seed 42 --policies do_nothing,naive,rules,agent --advisor-sample 150 --out results/
-wapsi sensitivity --factors 0.7,1.0,1.3
-wapsi report                                  # re-render results/report.md from summary.json
-wapsi serve --port 8000                       # API + dashboard (+ webhook endpoint)
-wapsi live seed                               # create test-mode entities, write live_state.json
-wapsi live watch --poll 10                    # poll Razorpay, run the agent on real cases
-wapsi case <id>                               # print one case's audit timeline
-wapsi live doctor                             # keys OK? models OK? GET /v1/webhooks -> url/events; tunnel reachable?
+bharpai simulate --n 500 --seed 42 --policies do_nothing,naive,rules,agent --advisor-sample 150 --out results/
+bharpai sensitivity --factors 0.7,1.0,1.3
+bharpai report                                  # re-render results/report.md from summary.json
+bharpai serve --port 8000                       # API + dashboard (+ webhook endpoint)
+bharpai live seed                               # create test-mode entities, write live_state.json
+bharpai live watch --poll 10                    # poll Razorpay, run the agent on real cases
+bharpai case <id>                               # print one case's audit timeline
+bharpai live doctor                             # keys OK? models OK? GET /v1/webhooks -> url/events; tunnel reachable?
 ```
 
 `scripts/` already holds the pieces `live doctor` grows from: `check_keys.py` (Razorpay auth +
@@ -404,7 +404,7 @@ shows actor, rule ids, summary). Light/dark via `prefers-color-scheme`. No frame
 
 ## 12. Live mode and webhooks (`live/`)
 
-**Seed** (`wapsi live seed`): 3 customers (`+91 99999 0000{1,2,3}`, test emails), 3 payment links
+**Seed** (`bharpai live seed`): 3 customers (`+91 99999 0000{1,2,3}`, test emails), 3 payment links
 (₹499, ₹1,299, ₹2,499 — payment links are the vehicle for scenario A because test-mode failures
 can only be produced through checkout), 1 invoice ₹15,000 due yesterday (scenario D), 1 plan ₹299
 monthly + 1 subscription (scenario C; authorise it once via its `short_url` with test card
@@ -412,12 +412,12 @@ monthly + 1 subscription (scenario C; authorise it once via its `short_url` with
 
 **Trigger a failure** (by hand, on camera): open a link, choose UPI, enter `failure@razorpay`.
 
-**Poller** (`wapsi live watch`): every N seconds — `payment.all(from=last_ts)` filtered
+**Poller** (`bharpai live watch`): every N seconds — `payment.all(from=last_ts)` filtered
 `status=failed` → new case (scenario A, error triple from the payment entity);
 `payment_link.fetch` / `invoice.fetch` / `subscription.fetch` for the seeded ids → state changes
 (paid → close recovered; `subscription.status in {pending, halted}` → scenario C case). Then run
 the planner with the real clock and the live gateway. Recovery links it creates carry
-`notes.wapsi_case_id`; the console prints the `short_url` so the demo can pay it with
+`notes.bharpai_case_id`; the console prints the `short_url` so the demo can pay it with
 `success@razorpay` → next poll sees `paid` → case closes `recovered`.
 
 **Webhook endpoint** (`POST /webhooks/razorpay`, with `POST /` as an alias because a pasted URL
@@ -431,13 +431,13 @@ into the same event objects the poller emits. Return 200 fast; process async.
 
 **Exposing the endpoint** (needed only for webhooks; the poller needs nothing):
 1. `winget install Cloudflare.cloudflared` (no account needed for a quick tunnel).
-2. `wapsi serve --port 8000`, then `cloudflared tunnel --url http://localhost:8000` → copy the
+2. `bharpai serve --port 8000`, then `cloudflared tunnel --url http://localhost:8000` → copy the
    `https://<random>.trycloudflare.com` URL.
 3. Razorpay Dashboard (test mode toggle ON) → Account & Settings → Webhooks → Add New Webhook:
    URL `https://<random>.trycloudflare.com/webhooks/razorpay`, a secret of your choosing, alert
    email, tick the events listed above → Create.
-4. Put the same secret in `.env` as `RAZORPAY_WEBHOOK_SECRET`; restart `wapsi serve`.
-5. Test: make a failed payment; the dashboard's webhook page shows delivery status; `wapsi serve`
+4. Put the same secret in `.env` as `RAZORPAY_WEBHOOK_SECRET`; restart `bharpai serve`.
+5. Test: make a failed payment; the dashboard's webhook page shows delivery status; `bharpai serve`
    logs the event. Note: quick-tunnel URLs change every run — update the webhook URL each time.
 
 Account facts (2026-09-04): Subscriptions is activated; the test-mode webhook is created with
@@ -478,7 +478,7 @@ must work with webhooks disabled.
 sentence "same 500 cases, same seed, four policies"). 4. How it works (ASCII diagram + the loop).
 5. Root-cause taxonomy (short table). 6. Bounds and stopping rules (rule ids → plain English →
 source). 7. Where the LLM is used and where it is not. 8. Run it: `pip install -e .`,
-`wapsi simulate`, `wapsi serve`. 9. Live mode with Razorpay test keys + webhook steps.
+`bharpai simulate`, `bharpai serve`. 9. Live mode with Razorpay test keys + webhook steps.
 10. **Honesty**: simulator limits, priors vs truth separation, what test mode cannot do, false-nudge
 cost, where the agent lost. 11. What broke (link to BUILD_LOG). 12. Architecture (link).
 13. What we would build next inside Razorpay (downtime-aware retry timing from
@@ -489,10 +489,10 @@ cost, where the agent lost. 11. What broke (link to BUILD_LOG). 12. Architecture
 | # | Build | Checkpoint (commit + push) |
 |---|---|---|
 | 1 | pyproject, config, models, taxonomy, policy.yaml + engine, validator, templates, tests for all of them | `pytest -q` green (taxonomy/policy/caps/afa/validator) |
-| 2 | world, customer, generator, fake gateway, messenger, executor, rules + baselines planners, runner, metrics, CLI simulate | `wapsi simulate --n 500` prints Table 1; naive shows violations, rules shows 0 |
+| 2 | world, customer, generator, fake gateway, messenger, executor, rules + baselines planners, runner, metrics, CLI simulate | `bharpai simulate --n 500` prints Table 1; naive shows violations, rules shows 0 |
 | 3 | llm adapter + prompts + cache + budget, agent planner, reply parsing, audit polish, sensitivity, report.md | agent run completes within Groq limits; Tables 1–4 in results/ |
 | 4 | live gateway, seed, poller, webhook, FastAPI, dashboard | one real test-mode case: failed → link → paid → closed, visible in dashboard |
-| 5 | README, ARCHITECTURE.md (diagram), BUILD_LOG entries, results committed, cleanup, final test run | fresh clone → `pip install -e .` → `wapsi simulate` works keyless |
+| 5 | README, ARCHITECTURE.md (diagram), BUILD_LOG entries, results committed, cleanup, final test run | fresh clone → `pip install -e .` → `bharpai simulate` works keyless |
 | 6 | video (storyboard in DESIGN §12), form answers | submitted before the deadline |
 
 Cut order if behind: sensitivity → agent planner (keep LLM messaging) → webhook (keep poller) →
@@ -500,10 +500,10 @@ dashboard (keep CLI). Never cut: tests, Table 1, audit log, README honesty secti
 
 ## 16. Form answers (drafts to refine at the end)
 
-**Project name:** Wapsi — cause-aware, bounded revenue recovery for Razorpay merchants.
+**Project name:** Bharpai — cause-aware, bounded revenue recovery for Razorpay merchants.
 
 **What it solves:** Razorpay merchants lose recoverable money to cause-blind retries and
-reminders. Wapsi reads Razorpay's own failure signals (`error_reason/source/step`), diagnoses why
+reminders. Bharpai reads Razorpay's own failure signals (`error_reason/source/step`), diagnoses why
 each payment, checkout, subscription charge or invoice failed, picks the one intervention that fits
 that cause, executes it inside hard RBI/TRAI/NPCI bounds with stopping rules and escalation, and
 proves the result on a 500-case batch: ₹ recovered net of cost against do-nothing, naive and
@@ -518,7 +518,7 @@ most instructive failure, say what the wrong assumption was, what the fix was, a
 once, SMS at 22:40 → TRAI violation, annoyed customer). 0:30–1:00 what Razorpay ships today and
 why calendar-based isn't cause-based. 1:00–1:45 architecture slide: the loop, the closed action set,
 the policy engine with rule ids, where the LLM sits and where it can't reach. 1:45–3:15 live:
-dashboard + Razorpay test dashboard side by side; pay a link with `failure@razorpay`; Wapsi shows
+dashboard + Razorpay test dashboard side by side; pay a link with `failure@razorpay`; Bharpai shows
 diagnosis (`insufficient_funds` → INSUFFICIENT_FUNDS), policy denies immediate retry (R24 EV) and
 night SMS (R10), schedules a Hinglish WhatsApp link for 10:00; fast-forward, pay with
 `success@razorpay`, case closes recovered, audit timeline scrolls. 3:15–4:15 the numbers: Table 1,

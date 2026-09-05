@@ -6,12 +6,12 @@ import collections
 
 import pytest
 
-from wapsi.core.metrics import compute
-from wapsi.core.models import Outcome, RootCause, Scenario
-from wapsi.core.policy import PolicyEngine
-from wapsi.sim.generator import generate
-from wapsi.sim.runner import Runner
-from wapsi.sim.world import World, load_config
+from bharpai.core.metrics import compute
+from bharpai.core.models import Outcome, RootCause, Scenario
+from bharpai.core.policy import PolicyEngine
+from bharpai.sim.generator import generate
+from bharpai.sim.runner import Runner
+from bharpai.sim.world import World, load_config
 
 
 def build_world(seed: int = 42) -> World:
@@ -50,7 +50,7 @@ def test_the_scenario_mix_matches_the_configured_shape(batch):
 def test_generated_errors_are_self_consistent(batch):
     """A generated failure must diagnose back to the cause it was drawn from."""
 
-    from wapsi.core.taxonomy import REASON_TO_CAUSE, classify
+    from bharpai.core.taxonomy import REASON_TO_CAUSE, classify
 
     _, cases, _ = batch
     for case in cases:
@@ -68,7 +68,7 @@ def test_generated_errors_are_self_consistent(batch):
 def test_the_batch_contains_cases_the_taxonomy_cannot_place(batch):
     """Real error vocabularies grow. A batch with no unknowns would not test the fallback."""
 
-    from wapsi.core.taxonomy import classify
+    from bharpai.core.taxonomy import classify
 
     _, cases, _ = batch
     unknown = [c for c in cases if classify(c.error, c.scenario, c.amount_paise)[0] is RootCause.UNKNOWN]
@@ -87,7 +87,7 @@ def test_transient_failures_coincide_with_a_real_outage(batch):
     """A transient decline that happens while the bank is up is not a transient decline."""
 
     world, cases, _ = batch
-    from wapsi.core.taxonomy import classify
+    from bharpai.core.taxonomy import classify
 
     transient = [
         c for c in cases if classify(c.error, c.scenario, c.amount_paise)[0] is RootCause.TRANSIENT_TECH

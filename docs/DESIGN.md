@@ -1,8 +1,8 @@
-# Wapsi — bounded revenue-recovery agent for Razorpay merchants
+# Bharpai — bounded revenue-recovery agent for Razorpay merchants
 
-> *wapsi (वापसी): return, comeback.* Working name; easy to change.
+> *bharpai (भरपाई): making good a loss — the word for recouping what was lost, rather than for collecting on someone.*
 
-**One line:** Wapsi watches a Razorpay merchant's failed payments, abandoned checkouts, halted
+**One line:** Bharpai watches a Razorpay merchant's failed payments, abandoned checkouts, halted
 subscriptions and overdue invoices; diagnoses *why* each one failed from Razorpay's own error
 signals; picks the one intervention that fits that cause; executes it within hard regulatory and
 economic bounds; and reports the rupees it recovered on a batch — alongside the cases it gave up
@@ -11,7 +11,7 @@ on and why.
 **What it solves:** Razorpay's built-in recovery is calendar-based (retry T+1/T+2/T+3, reminder
 every N days). It treats "bank was down for 20 minutes" the same as "customer's card is blocked"
 and "customer typed the wrong CVV". Cause-blind retries burn NPCI attempt limits, annoy customers,
-and leave recoverable money on the table. Wapsi is cause-aware, bounded, and auditable.
+and leave recoverable money on the table. Bharpai is cause-aware, bounded, and auditable.
 
 ---
 
@@ -162,8 +162,8 @@ never sees the hidden state — only what Razorpay would expose.
 1. `do_nothing` — baseline leak
 2. `naive` — retry 3× immediately + one reminder (what most merchants actually do; also
    demonstrates policy violations: night-time SMS, retry after risk decline)
-3. `rules` — Wapsi with deterministic planner, no LLM
-4. `agent` — Wapsi with LLM advisor + LLM messaging
+3. `rules` — Bharpai with deterministic planner, no LLM
+4. `agent` — Bharpai with LLM advisor + LLM messaging
 
 **Reported per policy:** cases, recovered, recovery rate, ₹ at risk, ₹ recovered, ₹ spent on
 interventions, **net ₹**, contacts per recovery, median hours-to-recovery, escalations, hard-stop
@@ -180,15 +180,15 @@ would have paid anyway).
 
 ## 9. Live mode (real Razorpay test-mode APIs, for the video)
 
-`wapsi live seed` creates real customers, orders, payment links, an invoice, a plan and a
+`bharpai live seed` creates real customers, orders, payment links, an invoice, a plan and a
 subscription in the merchant's test account. Failures are triggered the only way test mode
 allows — through checkout with `failure@razorpay` / the test-card Failure button, or
-dashboard "Charge this now → Failure". Wapsi ingests them (poller by default; webhook
+dashboard "Charge this now → Failure". Bharpai ingests them (poller by default; webhook
 endpoint if a tunnel is available), diagnoses, and creates **real payment links** and
 notifications you can see in the Razorpay dashboard. Paying a link with `success@razorpay`
 closes the case as recovered. Same agent code as `sim`; only the adapter differs.
 
-Demo money shot: Razorpay dashboard on the left, Wapsi audit trail on the right, one case
+Demo money shot: Razorpay dashboard on the left, Bharpai audit trail on the right, one case
 going failed → diagnosed → link sent → paid → closed, with every step's reasoning.
 
 ---
@@ -196,7 +196,7 @@ going failed → diagnosed → link sent → paid → closed, with every step's 
 ## 10. Architecture (modules)
 
 ```
-wapsi/
+bharpai/
   core/      models.py  taxonomy.py  policy.py  planner.py  executor.py  audit.py  metrics.py
   adapters/  razorpay_live.py  razorpay_fake.py  messaging.py  llm.py  humanqueue.py
   sim/       generator.py  customer.py  world.py  runner.py  config.yaml
@@ -217,7 +217,7 @@ HTML page served by FastAPI (no frontend toolchain). One `pip install -e .` and 
 | Session | Deliverable | Done when |
 |---|---|---|
 | 1 (now) | Research, design, repo scaffold, models, taxonomy, policy engine + tests | `pytest` green on policy rules |
-| 2 | Sim world, customer model, generator, batch runner, baselines, metrics | `wapsi simulate --n 500` prints a comparison table |
+| 2 | Sim world, customer model, generator, batch runner, baselines, metrics | `bharpai simulate --n 500` prints a comparison table |
 | 3 | LLM adapter + validator, messaging, reply parsing, agent mode, audit log | agent ≥ rules on the batch; violations = 0 |
 | 4 | Live adapter on Razorpay test keys, poller, seed script, dashboard | one real case recovered end-to-end in test mode |
 | 5 | README, ARCHITECTURE.md with diagram, BUILD_LOG, results/, sensitivity, cleanup | judge can clone → run → see numbers in < 5 min |
@@ -249,7 +249,7 @@ net ₹, violations, per-cause, sensitivity (60 s) · 4:15 what broke and how we
 
 ## 14. Decisions (resolved 2026-09-04)
 
-1. Project name: **Wapsi**. Repo: https://github.com/Kartik962005/Razorpay-Wapsi-
+1. Project name: **Bharpai**. Repo: https://github.com/Kartik962005/Razorpay-Wapsi-
 2. LLM provider: **Groq** via the OpenAI-compatible endpoint (`LLM_BASE_URL=https://api.groq.com/openai/v1`); model ids only in `.env`.
 3. Dashboard: minimal static HTML page served by FastAPI.
 4. Messaging: English + Hinglish.

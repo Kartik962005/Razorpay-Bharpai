@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from wapsi.config import IST
-from wapsi.core.models import ActionType, Method, RootCause, Scenario
+from bharpai.config import IST
+from bharpai.core.models import ActionType, Method, RootCause, Scenario
 
 from tests.conftest import NOW
 
@@ -100,7 +100,7 @@ def test_one_off_upi_payments_are_not_subject_to_mandate_rules(make_case, denial
 
 
 def test_transient_retry_waits_for_the_outage_to_clear(make_case, denials, ctx):
-    from wapsi.core.policy import PolicyContext
+    from bharpai.core.policy import PolicyContext
 
     case = make_case(root_cause=RootCause.TRANSIENT_TECH)
     during = PolicyContext(downtime_active=True)

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from wapsi.core.models import ActionType, ErrorTriple, Method, RootCause, Scenario
-from wapsi.core.taxonomy import (
+from bharpai.core.models import ActionType, ErrorTriple, Method, RootCause, Scenario
+from bharpai.core.taxonomy import (
     BASE_PRIORS,
     CANDIDATES,
     CAUSE_SUMMARY,
@@ -97,7 +97,7 @@ def test_risk_decline_offers_no_recovery_action(make_case):
 def test_a_subscription_must_be_noticed_before_it_can_be_retried(make_case):
     """Without the pre-debit notice the retry branch is dead, so the notice is itself a move."""
 
-    from wapsi.core.models import Method
+    from bharpai.core.models import Method
 
     unnotified = make_case(
         scenario=Scenario.C, method=Method.upi_autopay, root_cause=RootCause.INSUFFICIENT_FUNDS
@@ -127,7 +127,7 @@ def test_a_subscription_must_be_noticed_before_it_can_be_retried(make_case):
 
 def test_the_notice_is_valued_by_the_retry_it_unlocks(make_case):
     from tests.conftest import NOW
-    from wapsi.core.models import Method
+    from bharpai.core.models import Method
 
     case = make_case(
         scenario=Scenario.C, method=Method.upi_autopay, root_cause=RootCause.INSUFFICIENT_FUNDS
@@ -177,7 +177,7 @@ def test_prior_decays_with_repeated_attempts(make_case):
 
 
 def test_method_switch_moves_away_from_the_failing_rail(make_case):
-    from wapsi.core.taxonomy import preferred_switch_method
+    from bharpai.core.taxonomy import preferred_switch_method
 
     assert preferred_switch_method(make_case(method=Method.card)) is Method.upi
     assert preferred_switch_method(make_case(method=Method.upi)) is Method.card

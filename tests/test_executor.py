@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from wapsi.adapters.composer import TemplateComposer
-from wapsi.adapters.humanqueue import HumanQueue
-from wapsi.adapters.messaging import Messenger
-from wapsi.config import IST
-from wapsi.core.audit import AuditLog
-from wapsi.core.executor import Executor
-from wapsi.core.models import Action, ActionType, Channel, Method, Outcome, RootCause, Scenario
+from bharpai.adapters.composer import TemplateComposer
+from bharpai.adapters.humanqueue import HumanQueue
+from bharpai.adapters.messaging import Messenger
+from bharpai.config import IST
+from bharpai.core.audit import AuditLog
+from bharpai.core.executor import Executor
+from bharpai.core.models import Action, ActionType, Channel, Method, Outcome, RootCause, Scenario
 
 from tests.conftest import NOW
 

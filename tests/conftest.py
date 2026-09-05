@@ -4,9 +4,9 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from wapsi.config import IST
-from wapsi.core.models import Action, ActionType, Case, ErrorTriple, Method, RootCause, Scenario
-from wapsi.core.policy import PolicyContext, PolicyEngine
+from bharpai.config import IST
+from bharpai.core.models import Action, ActionType, Case, ErrorTriple, Method, RootCause, Scenario
+from bharpai.core.policy import PolicyContext, PolicyEngine
 
 #: A Monday at 12:00 IST — inside the customer messaging window, inside the NPCI morning peak.
 NOW = datetime(2026, 8, 3, 12, 0, tzinfo=IST)
@@ -104,8 +104,8 @@ def isolated_state(tmp_path, monkeypatch):
     happened, and a test fixture's case turned up in a live run.
     """
 
-    from wapsi.api import app as app_module
-    from wapsi.live import state as live_state
+    from bharpai.api import app as app_module
+    from bharpai.live import state as live_state
 
     # One line, because every state path is resolved from STATE_DIR at call time. Patching paths
     # individually is what let a new file escape isolation twice.

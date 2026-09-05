@@ -11,10 +11,10 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from wapsi.adapters.composer import LLMComposer, TemplateComposer
-from wapsi.adapters.templates import MessageContext
-from wapsi.config import IST, Settings
-from wapsi.core.models import (
+from bharpai.adapters.composer import LLMComposer, TemplateComposer
+from bharpai.adapters.templates import MessageContext
+from bharpai.config import IST, Settings
+from bharpai.core.models import (
     Action,
     ActionType,
     Channel,
@@ -24,10 +24,10 @@ from wapsi.core.models import (
     Scenario,
     Tone,
 )
-from wapsi.core.planner import AgentPlanner, RulesPlanner
-from wapsi.core.policy import PolicyContext
-from wapsi.core.replies import hard_stop_intent, interpret, regex_intent
-from wapsi.core.validator import validate
+from bharpai.core.planner import AgentPlanner, RulesPlanner
+from bharpai.core.policy import PolicyContext
+from bharpai.core.replies import hard_stop_intent, interpret, regex_intent
+from bharpai.core.validator import validate
 
 from tests.conftest import NOW
 
@@ -73,7 +73,7 @@ class RogueLLM:
 
 
 def test_no_key_means_no_model(monkeypatch):
-    from wapsi.adapters.llm import LLM
+    from bharpai.adapters.llm import LLM
 
     llm = LLM(Settings(llm_api_key="", llm_base_url="", llm_model="", llm_model_fast=""))
     assert not llm.enabled
@@ -196,7 +196,7 @@ def test_a_model_reading_is_used_where_no_hard_stop_applies():
 
 
 def test_relative_dates_resolve_without_a_model():
-    from wapsi.core.replies import regex_promise_date
+    from bharpai.core.replies import regex_promise_date
 
     monday = datetime(2026, 8, 3, 11, 0, tzinfo=IST)
     assert regex_promise_date("kal bhej dunga", monday) == monday + timedelta(days=1)
@@ -239,13 +239,13 @@ class HeaderStub:
     [("1m26.4s", 86.4), ("7.66s", 7.66), ("2m", 120.0), ("1h30m", 5400.0), ("", 60.0), (None, 60.0)],
 )
 def test_reset_durations_are_parsed(value, seconds):
-    from wapsi.adapters.llm import _parse_duration
+    from bharpai.adapters.llm import _parse_duration
 
     assert _parse_duration(value) == pytest.approx(seconds)
 
 
 def test_an_unparseable_reset_falls_back_to_a_minute():
-    from wapsi.adapters.llm import _parse_duration
+    from bharpai.adapters.llm import _parse_duration
 
     assert _parse_duration("soon") == 60.0
 
@@ -254,8 +254,8 @@ def test_headroom_is_read_from_the_response():
     """Free tiers meter tokens per minute. Pacing by request count is what produced hundreds of
     refusals, so the adapter reads what the provider says is actually left."""
 
-    from wapsi.adapters.llm import LLM
-    from wapsi.config import Settings
+    from bharpai.adapters.llm import LLM
+    from bharpai.config import Settings
 
     llm = LLM(Settings(llm_api_key="k", llm_base_url="http://x", llm_model="m", llm_model_fast="m"),
               cache=False)
@@ -265,9 +265,9 @@ def test_headroom_is_read_from_the_response():
 
 
 def test_pacing_waits_when_the_window_is_nearly_spent(monkeypatch):
-    from wapsi.adapters import llm as llm_mod
-    from wapsi.adapters.llm import LLM
-    from wapsi.config import Settings
+    from bharpai.adapters import llm as llm_mod
+    from bharpai.adapters.llm import LLM
+    from bharpai.config import Settings
 
     slept = []
     monkeypatch.setattr(llm_mod.time, "sleep", lambda s: slept.append(s))
@@ -287,8 +287,8 @@ def test_pacing_waits_when_the_window_is_nearly_spent(monkeypatch):
 
 
 def test_missing_headers_do_not_break_pacing():
-    from wapsi.adapters.llm import LLM
-    from wapsi.config import Settings
+    from bharpai.adapters.llm import LLM
+    from bharpai.config import Settings
 
     llm = LLM(Settings(llm_api_key="k", llm_base_url="http://x", llm_model="m", llm_model_fast="m"),
               cache=False)
@@ -306,8 +306,8 @@ def test_an_exhausted_request_allowance_stops_calling_rather_than_failing():
     """Tokens refill in a second; requests take hours. Waiting out the second is sensible,
     hammering the first is how a run collects 720 refusals instead of using templates."""
 
-    from wapsi.adapters.llm import LLM
-    from wapsi.config import Settings
+    from bharpai.adapters.llm import LLM
+    from bharpai.config import Settings
 
     llm = LLM(Settings(llm_api_key="k", llm_base_url="http://x", llm_model="m", llm_model_fast="m"),
               cache=False)
@@ -327,8 +327,8 @@ def test_an_exhausted_request_allowance_stops_calling_rather_than_failing():
 
 
 def test_a_short_token_window_is_waited_out_not_treated_as_exhaustion():
-    from wapsi.adapters.llm import LLM
-    from wapsi.config import Settings
+    from bharpai.adapters.llm import LLM
+    from bharpai.config import Settings
 
     llm = LLM(Settings(llm_api_key="k", llm_base_url="http://x", llm_model="m", llm_model_fast="m"),
               cache=False)

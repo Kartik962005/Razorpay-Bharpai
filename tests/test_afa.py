@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from wapsi.core.models import ActionType, Method, RootCause, Scenario
+from bharpai.core.models import ActionType, Method, RootCause, Scenario
 
 from tests.conftest import NOW
 

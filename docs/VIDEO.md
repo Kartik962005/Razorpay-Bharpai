@@ -26,7 +26,7 @@ starts with the package name, so a rename after the fact means recording again.
    ```
 4. **Check the terminal width.** Run this:
    ```
-   wapsi simulate --n 60
+   bharpai simulate --n 60
    ```
    Look at the table it prints. **The `disputes` column must be there.** The table sheds columns
    rather than truncating numbers, so a narrow window silently costs you that column — and "126
@@ -39,12 +39,12 @@ starts with the package name, so a rename after the fact means recording again.
 Run all six, in this order, and watch that each behaves. This is also how you learn the pacing.
 
 ```
-wapsi simulate --n 500 --policies do_nothing,platform,naive,rules
-wapsi rules
-wapsi case case_0134
-wapsi live doctor
-wapsi case live_pay_TY37K6kpZ1pGmE
-wapsi live watch --once
+bharpai simulate --n 500 --policies do_nothing,platform,naive,rules
+bharpai rules
+bharpai case case_0134
+bharpai live doctor
+bharpai case live_pay_TY37K6kpZ1pGmE
+bharpai live watch --once
 pytest
 ```
 
@@ -52,12 +52,12 @@ Measured on this machine:
 
 | command | time |
 |---|---|
-| `wapsi simulate --n 500` (4 policies) | 14s idle, ~30s on a busy machine |
-| `wapsi rules` | 1s |
-| `wapsi case case_0134` | 1s |
-| `wapsi live doctor` | 6s — Razorpay API, the model, and a webhook probe |
-| `wapsi case live_pay_…` | 1s |
-| `wapsi live watch --once` | 5s |
+| `bharpai simulate --n 500` (4 policies) | 14s idle, ~30s on a busy machine |
+| `bharpai rules` | 1s |
+| `bharpai case case_0134` | 1s |
+| `bharpai live doctor` | 6s — Razorpay API, the model, and a webhook probe |
+| `bharpai case live_pay_…` | 1s |
+| `bharpai live watch --once` | 5s |
 | `pytest` | 17–24s |
 
 About a minute of machine time inside five minutes of video. Two commands are long enough that you
@@ -65,7 +65,7 @@ must talk over them rather than watch in silence: **the batch** and **`pytest` a
 
 ## Step 4 · Put the results back
 
-The dry run overwrote them. `wapsi simulate` rewrites `results/` with only the policies you ran,
+The dry run overwrote them. `bharpai simulate` rewrites `results/` with only the policies you ran,
 which drops the model-advised row and the model statistics from the committed evidence.
 
 ```
@@ -80,7 +80,7 @@ It will report the webhook as **not reachable**. That is correct and deliberate 
 closed, and the command probes the endpoint rather than trusting Razorpay's `active` flag. There
 is a line in the script for it. Do not be thrown by red text.
 
-If you would rather it were green: run `wapsi serve` in a second terminal, then
+If you would rather it were green: run `bharpai serve` in a second terminal, then
 `cloudflared tunnel --url http://localhost:8000`, and paste the new hostname into the Razorpay
 dashboard webhook — quick tunnels get a fresh hostname every time, so the registered URL has to be
 updated too. Only worth it if you have already done it once today. Nothing in the video depends on
@@ -129,7 +129,7 @@ Do not linger. Get to the terminal.
 **Type:**
 
 ```
-wapsi simulate --n 500 --policies do_nothing,platform,naive,rules
+bharpai simulate --n 500 --policies do_nothing,platform,naive,rules
 ```
 
 **While the four policies run (about 14 seconds), say:**
@@ -156,7 +156,7 @@ wapsi simulate --n 500 --policies do_nothing,platform,naive,rules
 **Type:**
 
 ```
-wapsi rules
+bharpai rules
 ```
 
 **Say:**
@@ -182,7 +182,7 @@ Just to show it is genuinely one readable file. Skip it if you are behind.
 **Type:**
 
 ```
-wapsi case case_0134
+bharpai case case_0134
 ```
 
 **Say, over the trail:**
@@ -210,7 +210,7 @@ video:**
 **Type:**
 
 ```
-wapsi live doctor
+bharpai live doctor
 ```
 
 **Say:**
@@ -225,7 +225,7 @@ green. Say it without apology.)*
 **Type:**
 
 ```
-wapsi case live_pay_TY37K6kpZ1pGmE
+bharpai case live_pay_TY37K6kpZ1pGmE
 ```
 
 **Say, walking down the four lines:**
@@ -251,7 +251,7 @@ a minute, and owning it costs nothing next to being caught claiming an SMS that 
 **Type:**
 
 ```
-wapsi live watch --once
+bharpai live watch --once
 ```
 
 **Say:**
@@ -299,7 +299,7 @@ pytest
 lands as you finish:
 
 > "215 tests, no network, CI on Linux and Windows with no keys. Clone it, `pip install -e`,
-> `wapsi simulate` — no key needed, and it reproduces every number I just showed you. The model is
+> `bharpai simulate` — no key needed, and it reproduces every number I just showed you. The model is
 > optional throughout: without one it runs on templates and pattern matching, and the batch result
 > is identical."
 
@@ -320,7 +320,7 @@ Say plainly that you are reading the recorded run. The committed trail is the sa
 **You are running long.** Cut the optional `policy.yaml` shot, and cut the second half of Shot 4 —
 but never cut the 23:25 refusal in Shot 5 or the bug in Shot 6. Those two are the submission.
 
-**You need to fill fifteen seconds.** `wapsi simulate --n 60` tells the whole batch story in three
+**You need to fill fifteen seconds.** `bharpai simulate --n 60` tells the whole batch story in three
 seconds.
 
 ---

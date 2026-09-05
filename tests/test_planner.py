@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from wapsi.config import IST
-from wapsi.core.models import ActionType, Method, Outcome, RootCause, Scenario
-from wapsi.core.planner import RulesPlanner
-from wapsi.core.policy import PolicyContext
+from bharpai.config import IST
+from bharpai.core.models import ActionType, Method, Outcome, RootCause, Scenario
+from bharpai.core.planner import RulesPlanner
+from bharpai.core.policy import PolicyContext
 
 from tests.conftest import NOW
 
@@ -138,7 +138,7 @@ class StubAdvisor:
 
 
 def advise(engine, case, proposal, ctx=None):
-    from wapsi.core.planner import AgentPlanner
+    from bharpai.core.planner import AgentPlanner
 
     return AgentPlanner(engine, StubAdvisor(proposal)).plan(case, NOW, ctx or PolicyContext())
 

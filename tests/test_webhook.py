@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from wapsi.live.webhook import Receiver, normalise, verify
+from bharpai.live.webhook import Receiver, normalise, verify
 
 SECRET = "a-test-webhook-secret"
 
@@ -149,7 +149,7 @@ def test_the_endpoint_accepts_both_paths(isolated_state):
 
     from fastapi.testclient import TestClient
 
-    from wapsi.api.app import create_app
+    from bharpai.api.app import create_app
 
     app = create_app()
     app.state.receiver = Receiver(SECRET)
@@ -166,7 +166,7 @@ def test_the_endpoint_accepts_both_paths(isolated_state):
 def test_health_reports_a_fingerprint_not_the_secret():
     from fastapi.testclient import TestClient
 
-    from wapsi.api.app import create_app
+    from bharpai.api.app import create_app
 
     client = TestClient(create_app())
     body = client.get("/health").json()
@@ -179,8 +179,8 @@ def test_a_verified_failure_becomes_a_case_the_poller_can_act_on(isolated_state)
 
     from fastapi.testclient import TestClient
 
-    from wapsi.api import app as app_module
-    from wapsi.live import state
+    from bharpai.api import app as app_module
+    from bharpai.live import state
 
     app = app_module.create_app()
     app.state.receiver = Receiver(SECRET)
@@ -205,8 +205,8 @@ def test_a_verified_failure_becomes_a_case_the_poller_can_act_on(isolated_state)
 def test_an_appending_audit_log_keeps_what_was_already_there(tmp_path):
     from datetime import datetime
 
-    from wapsi.config import IST
-    from wapsi.core.audit import AuditLog
+    from bharpai.config import IST
+    from bharpai.core.audit import AuditLog
 
     path = tmp_path / "audit.jsonl"
     first = AuditLog(path)
@@ -226,9 +226,9 @@ def test_the_weekly_message_cap_survives_a_restart(isolated_state):
 
     from datetime import datetime, timedelta
 
-    from wapsi.config import IST
-    from wapsi.core.models import Channel, Language, Message, Tone
-    from wapsi.live import state
+    from bharpai.config import IST
+    from bharpai.core.models import Channel, Language, Message, Tone
+    from bharpai.live import state
 
     now = datetime.now(IST)
     sent = [

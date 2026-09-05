@@ -1,10 +1,10 @@
-# Wapsi
+# Bharpai
 
 [![tests](https://github.com/Kartik962005/Razorpay-Wapsi-/actions/workflows/tests.yml/badge.svg)](https://github.com/Kartik962005/Razorpay-Wapsi-/actions/workflows/tests.yml)
 
 **Cause-aware revenue recovery for Razorpay merchants.** Razorpay AI Buildathon — Track 3.
 
-*wapsi (वापसी): return, comeback.*
+*bharpai (भरपाई): making good a loss.*
 
 A payment fails. Most recovery systems then do the same thing regardless of *why* it failed:
 retry on a fixed ladder, send a reminder on a fixed cadence. That treats "the bank was down for
@@ -13,7 +13,7 @@ three failures with completely different answers. The retries that cannot work b
 limits, the reminders that arrive at the wrong hour cost goodwill, and the money that was
 genuinely recoverable is left on the table.
 
-Wapsi reads Razorpay's own failure signals, works out *why* each payment failed, picks the one
+Bharpai reads Razorpay's own failure signals, works out *why* each payment failed, picks the one
 intervention that fits that cause, and executes it inside hard regulatory and economic bounds —
 then reports what it recovered, net of what it cost, alongside everything it deliberately gave up
 on.
@@ -30,27 +30,27 @@ the differences below are decisions, not luck.
 | do nothing | 111 | 22.2% | ₹4,53,210 | ₹13 | ₹4,53,197 | 0 | 0 | 0 | 0 |
 | **Razorpay defaults** (retry ladder + `reminder_enable`) | 141 | 28.2% | ₹14,54,810 | ₹6,715 | ₹14,48,095 | 1,196 | 140 | 13 | — |
 | naive (retry ×3, then text) | 148 | 29.6% | ₹16,44,185 | ₹63,141 | ₹15,81,044 | 750 | 104 | 126 | **2,256** |
-| **Wapsi** | **233** | **46.6%** | ₹17,24,498 | ₹659 | **₹17,23,840** | 816 | 62 | 1 | **0** |
-| Wapsi, model-advised | 232 | 46.4% | ₹17,24,199 | ₹676 | ₹17,23,524 | 818 | 72 | 1 | **0** |
+| **Bharpai** | **233** | **46.6%** | ₹17,24,498 | ₹659 | **₹17,23,840** | 816 | 62 | 1 | **0** |
+| Bharpai, model-advised | 232 | 46.4% | ₹17,24,199 | ₹676 | ₹17,23,524 | 818 | 72 | 1 | **0** |
 
 **₹2.8 lakh more than Razorpay's own defaults recover, with a third fewer messages and less than
 half the opt-outs. ₹12.7 lakh more than doing nothing. Zero rule violations.**
 
 The fair comparison is the second row — what a merchant gets from the platform unprompted — and
-that is the claim: Wapsi recovers 65% more cases than the defaults while sending 1,196 → 816
+that is the claim: Bharpai recovers 65% more cases than the defaults while sending 1,196 → 816
 messages, because it sends the *right* message rather than three generic ones. The defaults lose
-140 customers to opt-outs, 8.5 messages per recovery; Wapsi loses 62.
+140 customers to opt-outs, 8.5 messages per recovery; Bharpai loses 62.
 
 The naive row is what untuned merchant automation actually does, and it is worth keeping because it
-shows what the rules are for. It spends 95× more than Wapsi and 126 of its recoveries turn into
-chargebacks. Judged by the same policy engine Wapsi obeys, it breaks rules 2,256 times — including
+shows what the rules are for. It spends 95× more than Bharpai and 126 of its recoveries turn into
+chargebacks. Judged by the same policy engine Bharpai obeys, it breaks rules 2,256 times — including
 **112 messages sent to people who had already said stop** and 16 retries of payments that risk had
 declined. (The defaults row is not scored for violations: those are the platform's actions, not a
 merchant's policy.)
 
 Recovery rate by root cause — this is where cause-awareness shows up:
 
-| root cause | cases | do nothing | naive | **Wapsi** |
+| root cause | cases | do nothing | naive | **Bharpai** |
 |---|---|---|---|---|
 | merchant misconfiguration | 10 | 10% | 10% | **100%** |
 | bank/PSP outage | 50 | 42% | 16% | **86%** |
@@ -65,7 +65,7 @@ Retrying into an outage is worse than doing nothing — the naive policy proves 
 against a 42% baseline on exactly the class of failure that retrying is supposed to fix.
 
 Two rows go the other way and are worth naming. **Overdue receivables** are the one class where
-the naive policy beats Wapsi, 66% against 58% — it gets there by emailing every three days
+the naive policy beats Bharpai, 66% against 58% — it gets there by emailing every three days
 forever, which is most of where its 2,256 rule violations come from. And **abandoned checkouts**
 are the weakest class outright, 12% against a 9% baseline: the TRAI window costs the golden first
 hour after someone leaves a cart, and the alternative is messaging them at 3 a.m.
@@ -74,7 +74,7 @@ hour after someone leaves a cart, and the alternative is messaging them at 3 a.m
 unchanged. Second — the test a sceptical reviewer should demand — every assumption that *flatters*
 the compliant policy turned down hard: night-time messages barely annoy anyone and never trigger a
 dispute, customers tolerate twice as many messages before opting out, retrying a risk-declined
-payment never causes a chargeback, and the chargeback fee is zero. **Wapsi still wins: ₹20.1L
+payment never causes a chargeback, and the chargeback fee is zero. **Bharpai still wins: ₹20.1L
 against ₹18.0L for the naive policy and ₹15.4L for Razorpay's own defaults.** The result does not
 depend on the simulation punishing carelessness. See [`results/sensitivity.md`](results/sensitivity.md).
 
@@ -127,7 +127,7 @@ again and stops. Eighty paise, one message, ₹1,299 recovered.
 ```
 
 Every arrow writes to an append-only audit log with the rule ids that produced it. The whole
-system is reconstructible from that log alone — which is the point of `wapsi case <id>`.
+system is reconstructible from that log alone — which is the point of `bharpai case <id>`.
 
 Full detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
@@ -135,7 +135,7 @@ Full detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 Every failed Razorpay payment carries `error_reason`, `error_source` and `error_step`. `source`
 says who must act, `step` says where in the flow it died. Roughly 150 documented reasons map onto
-12 root causes in [`wapsi/core/taxonomy.py`](wapsi/core/taxonomy.py). It is a lookup table, not a
+12 root causes in [`bharpai/core/taxonomy.py`](bharpai/core/taxonomy.py). It is a lookup table, not a
 model: the vocabulary is published, so guessing would only add error. Anything unmapped falls back
 on `source`, and failing that becomes `UNKNOWN` and is handled conservatively.
 
@@ -144,7 +144,7 @@ on `source`, and failing that becomes `UNKNOWN` and is handled conservatively.
 [`policy.yaml`](policy.yaml) holds every bound in one readable file — 26 rules, with ids
 running R01 to R41 so that related rules sit in the same decade and new ones can be added without
 renumbering. Nothing is duplicated in code; change a number there and the whole system changes
-with it. `wapsi rules` prints them all.
+with it. `bharpai rules` prints them all.
 
 | | rule | source |
 |---|---|---|
@@ -240,7 +240,7 @@ that it was deliberately kept out of the decisions that move money.
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"   # .venv\Scripts\pip on Windows
-wapsi simulate --n 500
+bharpai simulate --n 500
 ```
 
 No keys needed. That prints the comparison table and writes `results/report.md`,
@@ -248,26 +248,26 @@ No keys needed. That prints the comparison table and writes `results/report.md`,
 results with whatever policies you ran — `git checkout -- results/` puts them back.
 
 ```bash
-wapsi rules                     # every bound, with its rule id
-wapsi case case_0134            # one case's complete audit timeline
-wapsi serve                     # dashboard on :8000, plus the webhook endpoint
+bharpai rules                     # every bound, with its rule id
+bharpai case case_0134            # one case's complete audit timeline
+bharpai serve                     # dashboard on :8000, plus the webhook endpoint
 
 # The exact commands behind the two committed result files:
-wapsi simulate --n 500 --policies do_nothing,platform,naive,rules
-wapsi sensitivity --policies do_nothing,platform,naive,rules
+bharpai simulate --n 500 --policies do_nothing,platform,naive,rules
+bharpai sensitivity --policies do_nothing,platform,naive,rules
 
 # And the model-advised row, the only one that needs a key. Any OpenAI-compatible
 # endpoint; `advisor_sample` is recorded in summary.json so a rerun matches.
-wapsi simulate --n 500 --policies do_nothing,platform,naive,rules,agent --advisor-sample 0.05
+bharpai simulate --n 500 --policies do_nothing,platform,naive,rules,agent --advisor-sample 0.05
 ```
 
 ### Live mode, against a real Razorpay test account
 
 ```bash
 cp .env.example .env            # add test-mode keys; a model key is optional
-wapsi live doctor               # keys, model, and whether the webhook endpoint answers
-wapsi live seed                 # creates customers, payment links, an invoice, a subscription
-wapsi live watch                # polls, diagnoses, and runs the recovery loop
+bharpai live doctor               # keys, model, and whether the webhook endpoint answers
+bharpai live seed                 # creates customers, payment links, an invoice, a subscription
+bharpai live watch                # polls, diagnoses, and runs the recovery loop
 ```
 
 Polling is the default because it needs no public URL. Webhooks are supported and cut the latency
@@ -276,7 +276,7 @@ Polling is the default because it needs no public URL. Webhooks are supported an
 **To produce a failure you have to click.** Test mode has no API to fail a payment. Open a seeded
 link, choose netbanking, and press **Failure** on the mock bank page. (Every guide tells you to use
 UPI with `failure@razorpay`; that only works if UPI is enabled on your account, and on ours it was
-not.) `wapsi live watch` then picks up the real decline, diagnoses it from the real error code, and
+not.) `bharpai live watch` then picks up the real decline, diagnoses it from the real error code, and
 creates a real recovery link you can see in your dashboard.
 
 ---
@@ -350,11 +350,11 @@ into the baseline.
 ## Layout
 
 ```
-wapsi/core/       models · taxonomy · policy · planner · executor · audit · metrics · validator
-wapsi/adapters/   razorpay_live · razorpay_fake · llm · composer · templates · messaging
-wapsi/sim/        world · customer · generator · runner · baselines · config.yaml
-wapsi/live/       seed · poller · webhook · state
-wapsi/api/        FastAPI app + dashboard
+bharpai/core/       models · taxonomy · policy · planner · executor · audit · metrics · validator
+bharpai/adapters/   razorpay_live · razorpay_fake · llm · composer · templates · messaging
+bharpai/sim/        world · customer · generator · runner · baselines · config.yaml
+bharpai/live/       seed · poller · webhook · state
+bharpai/api/        FastAPI app + dashboard
 policy.yaml       every bound, in one file
 tests/            215 tests
 ```

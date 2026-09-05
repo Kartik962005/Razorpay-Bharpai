@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bharpai</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --panel: #ffffff; --ink: #1c1c1a; --muted: #6b6b66;
+    --line: #e6e5e1; --accent: #1a5f4a; --warn: #9a5b1f; --bad: #96322c;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171a; --panel: #1e1f23; --ink: #e9e8e4; --muted: #9b9a94;
+      --line: #2c2d32; --accent: #6cc3a3; --warn: #d9a05b; --bad: #e08a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header { padding: 28px 32px 12px; }
+  h1 { margin: 0; font-size: 21px; letter-spacing: -0.01em; }
+  h1 span { color: var(--muted); font-weight: 400; }
+  .sub { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+  main { padding: 12px 32px 48px; max-width: 1180px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 20px 0 28px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  .card .value { font-size: 23px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .card .value.good { color: var(--accent); }
+  .card .value.bad { color: var(--bad); }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 30px 0 10px; }
+  .wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { padding: 9px 14px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.clickable { cursor: pointer; }
+  tbody tr.clickable:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; border: 1px solid var(--line); }
+  .pill.ok { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+  .pill.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+  .zero { color: var(--accent); font-weight: 600; }
+  .nonzero { color: var(--bad); font-weight: 600; }
+  .empty { padding: 22px; color: var(--muted); font-size: 13.5px; }
+  .drawer {
+    position: fixed; inset: 0 0 0 auto; width: min(660px, 100%); background: var(--panel);
+    border-left: 1px solid var(--line); padding: 24px 26px; overflow-y: auto;
+    transform: translateX(100%); transition: transform .18s ease; box-shadow: -16px 0 40px rgba(0,0,0,.10);
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer h3 { margin: 0 0 2px; font-size: 16px; }
+  .drawer .close { position: absolute; top: 18px; right: 22px; cursor: pointer; color: var(--muted); border: none; background: none; font-size: 20px; }
+  .entry { border-left: 2px solid var(--line); padding: 0 0 14px 14px; margin-left: 4px; position: relative; }
+  .entry::before { content: ""; position: absolute; left: -5px; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+  .entry.act::before { background: var(--accent); }
+  .entry.deny::before { background: var(--warn); }
+  .entry .meta { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+  .entry .text { font-size: 13.5px; margin-top: 2px; }
+  .rules { font-family: var(--mono); font-size: 11.5px; color: var(--warn); }
+  footer { color: var(--muted); font-size: 12.5px; padding: 0 32px 40px; max-width: 1180px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bharpai <span>— cause-aware revenue recovery</span></h1>
+  <div class="sub" id="sub">loading…</div>
+</header>
+
+<main>
+  <div class="cards" id="cards"></div>
+
+  <h2>Policies compared on one identical batch</h2>
+  <div class="wrap"><table id="policies">
+    <thead><tr>
+      <th>policy</th><th class="num">recovered</th><th class="num">rate</th>
+      <th class="num">₹ recovered</th><th class="num">₹ cost</th><th class="num">₹ net</th>
+      <th class="num">contacts</th><th class="num">disputes</th><th class="num">violations</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table></div>
+
+  <h2>Live cases on the Razorpay test account</h2>
+  <div class="wrap"><table id="cases">
+    <thead><tr>
+      <th>case</th><th>scenario</th><th>diagnosis</th>
+      <th class="num">amount</th><th class="num">msgs</th><th>status</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+  <div class="empty" id="cases-empty" hidden>
+    No live cases yet. Run <code>bharpai live seed</code>, pay a link with <code>failure@razorpay</code>,
+    then <code>bharpai live watch</code>.
+  </div></div>
+</main>
+
+<footer id="foot"></footer>
+
+<div class="drawer" id="drawer">
+  <button class="close" onclick="closeDrawer()">×</button>
+  <h3 id="drawer-title">case</h3>
+  <div class="sub" id="drawer-sub"></div>
+  <div id="timeline" style="margin-top:18px"></div>
+</div>
+
+<script>
+const inr = n => "₹" + Math.round(n).toLocaleString("en-IN");
+
+async function get(url) {
+  try { const r = await fetch(url); return r.ok ? await r.json() : null; }
+  catch { return null; }
+}
+
+function card(label, value, cls) {
+  return `<div class="card"><div class="label">${label}</div>
+          <div class="value ${cls || ""}">${value}</div></div>`;
+}
+
+async function loadMetrics() {
+  const data = await get("/api/metrics");
+  const policies = (data && data.policies) || [];
+  const tbody = document.querySelector("#policies tbody");
+  if (!policies.length) {
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">No batch yet — run <code>bharpai simulate</code>.</td></tr>`;
+    document.getElementById("sub").textContent = "no batch results loaded";
+    return;
+  }
+  const meta = data.meta || {};
+  document.getElementById("sub").textContent =
+    `${meta.n || policies[0].cases} cases · seed ${meta.seed} · identical batch for every policy`;
+
+  const best = policies.reduce((a, b) => (b.net_paise > a.net_paise ? b : a));
+  const nothing = policies.find(p => p.policy === "do_nothing");
+  document.getElementById("cards").innerHTML = [
+    card("best policy", best.policy),
+    card("recovered", `${best.recovered} / ${best.cases}`),
+    card("net recovered", inr(best.net_paise / 100), "good"),
+    card("vs doing nothing", inr((best.net_paise - (nothing ? nothing.net_paise : 0)) / 100), "good"),
+    card("policy violations", best.violations, best.violations ? "bad" : "good"),
+    card("disputes caused", best.disputes, best.disputes ? "bad" : "good"),
+  ].join("");
+
+  tbody.innerHTML = policies.map(p => `
+    <tr>
+      <td>${p.policy}</td>
+      <td class="num">${p.recovered}</td>
+      <td class="num">${(p.recovery_rate * 100).toFixed(1)}%</td>
+      <td class="num">${inr(p.recovered_paise / 100)}</td>
+      <td class="num">${inr(p.cost_paise / 100)}</td>
+      <td class="num">${inr(p.net_paise / 100)}</td>
+      <td class="num">${p.contacts}</td>
+      <td class="num ${p.disputes ? "nonzero" : "zero"}">${p.disputes}</td>
+      <td class="num ${p.violations ? "nonzero" : "zero"}">${p.violations}</td>
+    </tr>`).join("");
+
+  document.getElementById("foot").textContent =
+    "Violations are counted by the same policy engine for every row, including the baselines that "
+    + "never consult it. Recovery is reported net of what the attempts cost, chargeback fees included.";
+}
+
+async function loadCases() {
+  const data = await get("/api/cases?source=live");
+  const cases = (data && data.cases) || [];
+  const tbody = document.querySelector("#cases tbody");
+  document.getElementById("cases-empty").hidden = cases.length > 0;
+  tbody.innerHTML = cases.map(c => `
+    <tr class="clickable" onclick="openCase('${c.id}')">
+      <td>${c.id}</td>
+      <td>${c.scenario}</td>
+      <td title="${(c.diagnosis || "").replace(/"/g, "&quot;")}">${c.root_cause || "—"}</td>
+      <td class="num">${inr(c.amount_inr)}</td>
+      <td class="num">${c.nudges}</td>
+      <td><span class="pill ${c.outcome === "recovered" ? "ok" : (c.outcome ? "bad" : "")}">${c.outcome || c.status}</span></td>
+    </tr>`).join("");
+}
+
+async function openCase(id) {
+  const data = await get(`/api/cases/${id}`);
+  document.getElementById("drawer-title").textContent = id;
+  const entries = (data && data.timeline) || [];
+  document.getElementById("drawer-sub").textContent = `${entries.length} audit entries`;
+  document.getElementById("timeline").innerHTML = entries.map(e => {
+    const cls = e.kind === "action" ? "act" : (e.rule_ids.length ? "deny" : "");
+    const rules = e.rule_ids.length ? ` <span class="rules">[${e.rule_ids.join(", ")}]</span>` : "";
+    const when = new Date(e.ts).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    return `<div class="entry ${cls}">
+      <div class="meta">${when} · ${e.actor} · ${e.kind}${rules}</div>
+      <div class="text">${(e.summary || "").replace(/</g, "&lt;")}</div>
+    </div>`;
+  }).join("") || `<div class="empty">No audit entries found for this case.</div>`;
+  document.getElementById("drawer").classList.add("open");
+}
+function closeDrawer() { document.getElementById("drawer").classList.remove("open"); }
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+
+async function refresh() { await Promise.all([loadMetrics(), loadCases()]); }
+refresh();
+setInterval(loadCases, 4000);
+</script>
+</body>
+</html>

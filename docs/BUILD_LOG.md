@@ -32,7 +32,7 @@ guessing.
 merchant key. The URL on file was the bare tunnel host — the `/webhooks/razorpay` path had been
 dropped when pasting. Confirmed by adding a `POST /` alias to the receiver: Razorpay then delivered
 both the new event *and* its retry of the earlier one within seconds. Lesson kept in the code:
-the real app accepts the webhook on `/` as well as `/webhooks/razorpay`, and `wapsi live doctor`
+the real app accepts the webhook on `/` as well as `/webhooks/razorpay`, and `bharpai live doctor`
 prints the registered webhook URL/events so this cannot silently recur.
 
 **Broke:** Both LLM model ids from the plan (`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`)
@@ -52,7 +52,7 @@ official SDK's verifier on a dummy secret.
 (a 48-char generated token) — realigned `.env`. Second, the receiver process had loaded the old
 secret at start-up, so the very next delivery still failed even though the file was now right;
 restarting it fixed that. Re-fired `payment_link.cancelled` → `signature_ok: true`. Lessons kept:
-`wapsi live doctor` prints a short fingerprint of the loaded webhook secret (never the value) so
+`bharpai live doctor` prints a short fingerprint of the loaded webhook secret (never the value) so
 a stale process is obvious, and the app logs the fingerprint it loaded on boot.
 
 ## 2026-09-04 — session 1: diagnosis, policy engine, guardrails
@@ -272,8 +272,8 @@ declining to do so on live data with the rule and the deferred time recorded.
 ## 2026-09-04 — session 5: documentation, and proving the keyless claim
 
 **Checked rather than assumed:** the README claims the whole system runs with no API keys. Hiding
-`.env` and re-running proved it — 160 tests pass, `wapsi simulate` produces the full comparison
-table, and `wapsi live doctor` degrades to a readable "no keys" report instead of failing. That
+`.env` and re-running proved it — 160 tests pass, `bharpai simulate` produces the full comparison
+table, and `bharpai live doctor` degrades to a readable "no keys" report instead of failing. That
 claim is the reason a judge can reproduce the numbers, so it needed to be tested rather than
 believed.
 
@@ -285,7 +285,7 @@ type alongside its message when a call genuinely fails. A diagnostic tool whose 
 the single character `1` is worse than no diagnostic tool.
 
 **Cleanup:** `scripts/check_keys.py` and `scripts/webhook_probe.py` were scaffolding written before
-the package existed; `wapsi live doctor` and `wapsi serve` do both jobs properly now, so they are
+the package existed; `bharpai live doctor` and `bharpai serve` do both jobs properly now, so they are
 gone. What remains in `scripts/` is documented.
 
 ## 2026-09-05 — reviewing it the way a committee would
@@ -294,16 +294,16 @@ Sat down with the finished build and read it as a sceptical Razorpay reviewer wi
 other submissions to get through. Four things did not survive that reading.
 
 **"Your naive baseline is a strawman."** Fair. Retrying three times in fifteen minutes and then
-texting at midnight is what bad automation does, but nobody is choosing between Wapsi and that.
-They are choosing between Wapsi and Razorpay's own defaults — the subscription retry ladder and
+texting at midnight is what bad automation does, but nobody is choosing between Bharpai and that.
+They are choosing between Bharpai and Razorpay's own defaults — the subscription retry ladder and
 `reminder_enable` on links and invoices. Added a `platform` policy that does exactly and only that,
 with reminders in daytime batches and no retries of one-off payments, and tagged its actions as
-the platform's so it is not scored for rule breaks. It nets ₹14.5L on the batch. Wapsi nets ₹17.2L.
+the platform's so it is not scored for rule breaks. It nets ₹14.5L on the batch. Bharpai nets ₹17.2L.
 That ₹2.8L gap is the honest claim; the ₹13L gap against doing nothing is true but less interesting.
 
 **"Your sensitivity only scales everything uniformly. Turn down the penalties and naive wins."**
 Ran exactly that: night contact barely annoys, opt-outs take twice as many messages, hammering a
-risk decline never causes a chargeback, chargebacks are free. Wapsi still leads — ₹20.1L to naive's
+risk decline never causes a chargeback, chargebacks are free. Bharpai still leads — ₹20.1L to naive's
 ₹18.0L — so the ranking does not depend on the simulation being harsh. This was the single most
 valuable hour of the review, because I did not know the answer before running it.
 
@@ -353,7 +353,7 @@ it too.
 check in the system — could never return `paid` for a case born from a failed payment. Such a case
 carries an order id and a payment id, and `refresh` looked only at payment links, invoices and
 subscriptions. If the customer went back and paid the original link, or simply checked out again,
-the order would settle and Wapsi would keep chasing them.
+the order would settle and Bharpai would keep chasing them.
 
 **Got out:** The order is the authoritative unit of payment for a one-off purchase, so it is now
 checked too — by status and by `amount_paid`, since Razorpay reports partial settlement as an
@@ -376,7 +376,7 @@ simulation cannot vouch for.** Went looking for siblings and found three, plus o
 fixing them.
 
 **Broke:** The per-customer weekly messaging cap (R23) reset on every restart. It is derived from
-what the messenger has sent, and the messenger was rebuilt empty each time `wapsi live watch`
+what the messenger has sent, and the messenger was rebuilt empty each time `bharpai live watch`
 started. Cases persisted; messages did not. So a customer who had received their five messages
 became contactable again purely because a process restarted.
 
@@ -402,7 +402,7 @@ resolved from one directory at call time, so redirecting that directory redirect
 including files that do not exist yet. The fixture is one line. A defence that has to be updated
 whenever the code grows is not a defence.
 
-**Broke:** A rename left a dead constant on the exit path of `wapsi live watch`. All 177 tests
+**Broke:** A rename left a dead constant on the exit path of `bharpai live watch`. All 177 tests
 passed; the command would have crashed the moment anyone ran it, because nothing in the suite ever
 invoked the CLI.
 
@@ -529,7 +529,7 @@ stale number is only visible to someone who re-derives it.
 
 **Got out:** every figure quoted in prose is now checked against `results/summary.json` and
 `results/report.md` rather than against memory of an earlier run. The regeneration path was never
-the problem — `wapsi simulate` rewrites the results honestly on every run. The problem was the
+the problem — `bharpai simulate` rewrites the results honestly on every run. The problem was the
 sentences around them, which no command rewrites. If this went further the fix would be to
 generate those tables into the README the way the report is generated, so the prose cannot outlive
 the run it describes.
@@ -537,7 +537,7 @@ the run it describes.
 **One process note, since it is the actual lesson.** I reported the earlier check as complete when
 it was not, and the only reason the errors surfaced is that the claim was challenged rather than
 taken. Two of them — the rule count and the per-cause table — would have been read by a reviewer
-who opened the repository and compared the README against `wapsi rules`.
+who opened the repository and compared the README against `bharpai rules`.
 
 ## 2026-09-05, later — reviewing it as a stranger would
 
@@ -567,7 +567,7 @@ avoided this only because the model happened to advise a link first.
 **Got out:** The planner asks the gateway what it is capable of, separately from asking the policy
 engine what is permitted. Two different questions that had been collapsed into one.
 
-**Broke:** `wapsi live watch` skipped waiting cases silently. A deferral is the most interesting
+**Broke:** `bharpai live watch` skipped waiting cases silently. A deferral is the most interesting
 thing this agent does, and the loop's output made it indistinguishable from a stopped process. It
 also offered payment links for cases that had already been recovered — the exact confusion the
 idempotency guard exists to prevent, reintroduced in the console output.

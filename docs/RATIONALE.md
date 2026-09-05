@@ -27,7 +27,7 @@ Four answers, all checkable in the repository.
    that flatters the compliant policy — night contact barely annoys, opt-outs take twice as many
    messages, chargebacks are free. The ranking holds under both. That is `results/sensitivity.md`.
 4. The fair baseline is not the naive one — it is Razorpay's own defaults, the `platform` row.
-   Wapsi has to beat that, and does.
+   Bharpai has to beat that, and does.
 
 The simulation is still the weakest part, and the next month of work would go into replacing
 published priors with a merchant's own recovery history. The architecture isolates them in one
@@ -65,12 +65,12 @@ chargeback). Auto-retry a recurring charge over ₹15,000 (RBI requires the cust
 Debit a mandate without 24 hours' notice. Message before 10:00 or after 21:00, or after 19:00 for
 an invoice. Contact anyone who said stop, disputed, or was refunded. Chase a customer for the
 merchant's own misconfiguration. Message five times in a week. Act when the expected value is
-below the cost. Each is a numbered rule, each denial is logged with its rule, and `wapsi rules`
+below the cost. Each is a numbered rule, each denial is logged with its rule, and `bharpai rules`
 prints them.
 
 ### "Show me the audit trail for one case."
 
-`wapsi case case_0134`, or read the committed copy at `results/case_0134.md`: detection, diagnosis, the planner's verdict with an
+`bharpai case case_0134`, or read the committed copy at `results/case_0134.md`: detection, diagnosis, the planner's verdict with an
 expected value, the policy engine's denial with a rule id and the time it lifts, the action, the
 customer's reply as read, the outcome. Nothing in it was written afterwards.
 
@@ -129,14 +129,14 @@ one is a property of the account and the other a choice this system made.
 ### The numbers, in one place
 
 - 500 cases, seed 42, identical batch for every policy
-- do nothing 22.2% · **Razorpay defaults 28.2%** · naive 29.6% · Wapsi 46.6%
+- do nothing 22.2% · **Razorpay defaults 28.2%** · naive 29.6% · Bharpai 46.6%
 - ₹17.2L net · defaults ₹14.5L · naive ₹15.8L · nothing ₹4.5L
 - **₹2.8L above the platform's own defaults**, with 816 messages to their 1,196 and 62 opt-outs
   to their 140 — the fair comparison, and the one the README leads with
 - strict figure ₹13.9L excluding every case that would have resolved itself
 - 0 violations against naive's 2,256, of which 112 were messages to people who said stop
 - 1 dispute against naive's 126 and the defaults' 13
-- hostile assumptions (penalties stripped, chargebacks free): Wapsi ₹20.1L, naive ₹18.0L,
+- hostile assumptions (penalties stripped, chargebacks free): Bharpai ₹20.1L, naive ₹18.0L,
   defaults ₹15.4L — ranking unchanged
 - 51 false nudges, counted against ourselves
 - 215 tests, no network; CI on Linux and Windows, no keys
@@ -146,7 +146,7 @@ one is a property of the account and the other a choice this system made.
 The idempotency guard — the check that stops the agent chasing someone who has already paid — did
 not work on the live path. A case created from a failed payment carries an order id and a payment
 id; `refresh()` looked only at payment links, invoices and subscriptions. So if a customer went
-back and paid the original link, the order settled and Wapsi carried on messaging them.
+back and paid the original link, the order settled and Bharpai carried on messaging them.
 
 Two things about it are worth saying. First, it is the failure the whole project claims to
 prevent, so finding it in my own code is the most useful thing that happened during the build.

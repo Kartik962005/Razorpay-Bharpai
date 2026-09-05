@@ -1,4 +1,4 @@
-# Every bound Wapsi operates under, in one file.
+# Every bound Bharpai operates under, in one file.
 #
 # Each rule has an id (R01..R41). The engine cites those ids on every allow/deny, the audit log
 # stores them, the tests assert on them, and the README renders this file. Change a number here

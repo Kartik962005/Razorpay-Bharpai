@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from wapsi.core.models import ActionType, Outcome, RootCause, Scenario
-from wapsi.core.policy import PolicyContext
+from bharpai.core.models import ActionType, Outcome, RootCause, Scenario
+from bharpai.core.policy import PolicyContext
 
 from tests.conftest import NOW
 
