@@ -66,6 +66,10 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# The suite imports shared fixtures as `from tests.conftest import NOW`, which needs the repo
+# root importable. `python -m pytest` adds it implicitly and bare `pytest` does not, so without
+# this the documented command fails for everyone while passing for whoever wrote it.
+pythonpath = ["."]
 filterwarnings = [
     # starlette's TestClient imports a deprecated anyio alias. Nothing here can fix it, and its
     # traceback was the last thing printed after a clean run, which reads as a failure.
