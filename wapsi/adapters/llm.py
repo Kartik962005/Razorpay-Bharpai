@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import time
 from dataclasses import dataclass, field
@@ -38,9 +39,27 @@ MIN_OUTPUT_TOKENS = 400
 #: turned a twenty-minute batch into a two-hour one; a template is a better answer than a wait.
 BACKOFF_SECONDS = (3,)
 
-#: Free tiers meter requests per minute. Spacing calls out is what keeps them from failing in the
-#: first place, and makes a batch's runtime predictable instead of hostage to 429s.
-MIN_INTERVAL_SECONDS = 2.1
+#: A floor between calls. The real pacing comes from the provider's own headroom (below); this
+#: only stops a burst before the first response has told us anything.
+MIN_INTERVAL_SECONDS = 1.0
+
+#: Below this many tokens left in the current window, wait for the window to reset rather than
+#: spend the next call on a refusal. Roughly one call's worth of prompt plus completion.
+TOKEN_HEADROOM = 1400
+
+
+def _parse_duration(value: Any) -> float:
+    """Seconds from a rate-limit reset header such as ``1m26.4s``, ``7.66s`` or ``2m``."""
+
+    if not value:
+        return 60.0
+    match = re.fullmatch(
+        r"(?:(?P<h>[\d.]+)h)?(?:(?P<m>[\d.]+)m)?(?:(?P<s>[\d.]+)s)?", str(value).strip()
+    )
+    if not match or not any(match.groupdict().values()):
+        return 60.0
+    parts = {k: float(v) if v else 0.0 for k, v in match.groupdict().items()}
+    return parts["h"] * 3600 + parts["m"] * 60 + parts["s"]
 
 
 @dataclass
@@ -50,6 +69,9 @@ class LLMStats:
     failures: int = 0
     fallbacks: int = 0
     budget_exhausted: bool = False
+    #: Time spent deliberately waiting for the provider's window to reset, rather than
+    #: spending calls on refusals.
+    throttled_seconds: float = 0.0
     by_task: dict[str, int] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
@@ -59,6 +81,7 @@ class LLMStats:
             "failures": self.failures,
             "fallbacks": self.fallbacks,
             "budget_exhausted": self.budget_exhausted,
+            "throttled_seconds": round(self.throttled_seconds),
             "by_task": dict(self.by_task),
         }
 
@@ -96,6 +119,8 @@ class LLM:
         self._client = None
 
         self._last_call = 0.0
+        self._tokens_left: int | None = None
+        self._window_resets_at = 0.0
         self.enabled = self.settings.llm_configured
         if self.enabled:
             try:
@@ -113,6 +138,43 @@ class LLM:
     @property
     def budget_left(self) -> int:
         return max(0, self.settings.llm_max_calls - self.stats.calls)
+
+    # -- pacing -------------------------------------------------------------------------------
+
+    def _pace(self) -> None:
+        """Wait until the provider can actually serve the next call.
+
+        Free tiers meter *tokens* per minute, not requests, and pacing by request count is how a
+        batch ends up with hundreds of refusals: 28 calls a minute is well inside a 1,000-request
+        allowance and roughly four times an 8,000-token one. Every response reports how much of
+        the window is left, so the adapter reads that and waits for the reset rather than
+        spending the next call discovering it is empty.
+        """
+
+        if self._tokens_left is not None and self._tokens_left < TOKEN_HEADROOM:
+            sleep_for = max(0.0, self._window_resets_at - time.monotonic()) + 0.4
+            if sleep_for > 0:
+                self.stats.throttled_seconds += sleep_for
+                time.sleep(sleep_for)
+            self._tokens_left = None
+
+        gap = MIN_INTERVAL_SECONDS - (time.monotonic() - self._last_call)
+        if gap > 0:
+            time.sleep(gap)
+        self._last_call = time.monotonic()
+
+    def _note_headroom(self, headers: Any) -> None:
+        """Record what the provider says is left in the current window."""
+
+        remaining = headers.get("x-ratelimit-remaining-tokens")
+        reset = headers.get("x-ratelimit-reset-tokens")
+        if remaining is None:
+            return
+        try:
+            self._tokens_left = int(float(remaining))
+        except (TypeError, ValueError):
+            return
+        self._window_resets_at = time.monotonic() + _parse_duration(reset)
 
     # -- transport ----------------------------------------------------------------------------
 
@@ -137,15 +199,11 @@ class LLM:
         for attempt, pause in enumerate((0, *BACKOFF_SECONDS)):
             if pause:
                 time.sleep(pause)
-            # Throttle: never two calls closer together than the free tier tolerates.
-            wait = MIN_INTERVAL_SECONDS - (time.monotonic() - self._last_call)
-            if wait > 0:
-                time.sleep(wait)
-            self._last_call = time.monotonic()
+            self._pace()
             try:
                 self.stats.calls += 1
                 self.stats.by_task[task] = self.stats.by_task.get(task, 0) + 1
-                response = self._client.chat.completions.create(
+                raw = self._client.chat.completions.with_raw_response.create(
                     model=model,
                     messages=[
                         {"role": "system", "content": system},
@@ -156,6 +214,8 @@ class LLM:
                     max_tokens=MIN_OUTPUT_TOKENS,
                     extra_body={"reasoning_effort": "low"},
                 )
+                self._note_headroom(raw.headers)
+                response = raw.parse()
                 content = (response.choices[0].message.content or "").strip()
                 if not content:
                     raise ValueError("empty response")

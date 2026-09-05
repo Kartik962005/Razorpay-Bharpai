@@ -219,3 +219,84 @@ def test_the_template_composer_needs_nothing(engine, make_case):
     )
     composed = TemplateComposer(engine.policy).compose(case, action, "https://rzp.io/i/x", NOW)
     assert composed.text and not composed.llm_written
+
+
+class HeaderStub:
+    """Mimics the rate-limit headers a provider returns, so pacing can be tested offline."""
+
+    def __init__(self, remaining, reset="5s"):
+        self._h = {
+            "x-ratelimit-remaining-tokens": str(remaining),
+            "x-ratelimit-reset-tokens": reset,
+        }
+
+    def get(self, key):
+        return self._h.get(key)
+
+
+@pytest.mark.parametrize(
+    "value,seconds",
+    [("1m26.4s", 86.4), ("7.66s", 7.66), ("2m", 120.0), ("1h30m", 5400.0), ("", 60.0), (None, 60.0)],
+)
+def test_reset_durations_are_parsed(value, seconds):
+    from wapsi.adapters.llm import _parse_duration
+
+    assert _parse_duration(value) == pytest.approx(seconds)
+
+
+def test_an_unparseable_reset_falls_back_to_a_minute():
+    from wapsi.adapters.llm import _parse_duration
+
+    assert _parse_duration("soon") == 60.0
+
+
+def test_headroom_is_read_from_the_response():
+    """Free tiers meter tokens per minute. Pacing by request count is what produced hundreds of
+    refusals, so the adapter reads what the provider says is actually left."""
+
+    from wapsi.adapters.llm import LLM
+    from wapsi.config import Settings
+
+    llm = LLM(Settings(llm_api_key="k", llm_base_url="http://x", llm_model="m", llm_model_fast="m"),
+              cache=False)
+    llm._note_headroom(HeaderStub(6200, "9.5s"))
+    assert llm._tokens_left == 6200
+    assert llm._window_resets_at > 0
+
+
+def test_pacing_waits_when_the_window_is_nearly_spent(monkeypatch):
+    from wapsi.adapters import llm as llm_mod
+    from wapsi.adapters.llm import LLM
+    from wapsi.config import Settings
+
+    slept = []
+    monkeypatch.setattr(llm_mod.time, "sleep", lambda s: slept.append(s))
+
+    llm = LLM(Settings(llm_api_key="k", llm_base_url="http://x", llm_model="m", llm_model_fast="m"),
+              cache=False)
+
+    llm._note_headroom(HeaderStub(7000))   # plenty left
+    llm._pace()
+    assert not any(s > 1 for s in slept), "no long wait while there is headroom"
+
+    slept.clear()
+    llm._note_headroom(HeaderStub(200, "8s"))   # nearly spent
+    llm._pace()
+    assert any(s > 1 for s in slept), "must wait for the window rather than spend a call on a 429"
+    assert llm.stats.throttled_seconds > 0
+
+
+def test_missing_headers_do_not_break_pacing():
+    from wapsi.adapters.llm import LLM
+    from wapsi.config import Settings
+
+    llm = LLM(Settings(llm_api_key="k", llm_base_url="http://x", llm_model="m", llm_model_fast="m"),
+              cache=False)
+
+    class Empty:
+        def get(self, key):
+            return None
+
+    llm._note_headroom(Empty())
+    assert llm._tokens_left is None
+    llm._pace()  # must not raise
