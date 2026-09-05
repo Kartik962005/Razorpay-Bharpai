@@ -139,3 +139,35 @@ def test_the_results_table_never_truncates_the_numbers_it_exists_to_show():
 
     # A wide terminal keeps everything.
     assert _fit(CONSOLE_COLUMNS, rows, 200) == CONSOLE_COLUMNS
+
+
+def test_the_committed_results_are_the_ones_the_readme_quotes():
+    """Guard the evidence against a stray `simulate` overwriting it.
+
+    `bharpai simulate` rewrites `results/` with whatever policies were asked for, so running it
+    with a smaller batch — or without the model-advised row — silently replaces the figures the
+    README, the report and the video script all quote. That has happened twice. A reviewer would
+    see a README claiming numbers its own `summary.json` does not contain, which is worse than any
+    bug in the code.
+    """
+
+    import json
+
+    from bharpai.config import RESULTS_DIR
+
+    summary = RESULTS_DIR / "summary.json"
+    if not summary.exists():
+        pytest.skip("no batch has been run in this checkout")
+
+    data = json.loads(summary.read_text(encoding="utf-8"))
+    policies = [p["policy"] for p in data["policies"]]
+
+    assert data["meta"]["n"] == 500, (
+        f"committed results are a {data['meta']['n']}-case batch; the README quotes 500. "
+        "Restore with: git checkout -- results/"
+    )
+    for expected in ("do_nothing", "platform", "naive", "rules", "agent"):
+        assert expected in policies, (
+            f"committed results are missing the {expected!r} row. "
+            "Restore with: git checkout -- results/"
+        )
