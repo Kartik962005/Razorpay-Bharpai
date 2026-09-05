@@ -35,9 +35,9 @@ CACHE_PATH = REPO_ROOT / ".cache" / "llm.sqlite"
 #: ceiling returns an empty message rather than a short one.
 MIN_OUTPUT_TOKENS = 400
 
-#: One retry after a rate limit, then fall back. Retreating for fifteen seconds per failed call
-#: turned a twenty-minute batch into a two-hour one; a template is a better answer than a wait.
-BACKOFF_SECONDS = (3,)
+#: Three retries, each of which waits for the window the provider named rather than a fixed
+#: guess — the zeros are placeholders, since the real pause is computed from the headers.
+BACKOFF_SECONDS = (0, 0, 0)
 
 #: A floor between calls. The real pacing comes from the provider's own headroom (below); this
 #: only stops a burst before the first response has told us anything.
@@ -130,6 +130,14 @@ class LLM:
         self.cache = _Cache() if cache else None
         self._client = None
 
+        # Reasoning models spend output tokens thinking, and capping that keeps replies short
+        # enough to fit a window. Providers that do not know the parameter reject the whole
+        # request, so it is sent only where it is understood.
+        self._extra: dict[str, Any] = (
+            {"extra_body": {"reasoning_effort": "low"}}
+            if "groq" in (settings or get_settings()).llm_base_url.lower()
+            else {}
+        )
         self._last_call = 0.0
         self._tokens_left: int | None = None
         self._requests_left: int | None = None
@@ -261,7 +269,7 @@ class LLM:
                     response_format={"type": "json_object"},
                     temperature=0.3,
                     max_tokens=MIN_OUTPUT_TOKENS,
-                    extra_body={"reasoning_effort": "low"},
+                    **self._extra,
                 )
                 self._note_headroom(raw.headers)
                 response = raw.parse()
@@ -273,8 +281,23 @@ class LLM:
                     self.cache.put(key, content)
                 return parsed
             except Exception as exc:  # noqa: BLE001
-                # Rate limits are worth waiting out; anything else is not worth four attempts.
+                # A refusal reports the same headroom a success does. Reading it is the
+                # difference between waiting once and failing repeatedly.
+                headers = getattr(getattr(exc, "response", None), "headers", None)
+                if headers is not None:
+                    try:
+                        self._note_headroom(headers)
+                    except Exception:  # noqa: BLE001
+                        pass
                 retryable = "429" in str(exc) or "rate" in str(exc).lower()
+                if retryable and attempt < len(BACKOFF_SECONDS):
+                    # Wait for the window the provider just told us about, not a fixed guess.
+                    wait = min(MAX_WAIT_SECONDS, max(0.0, self._window_resets_at - time.monotonic()))
+                    if wait > 0:
+                        self.stats.throttled_seconds += wait
+                        time.sleep(wait)
+                        self._tokens_left = None
+                    continue
                 if not retryable or attempt == len(BACKOFF_SECONDS):
                     self.stats.failures += 1
                     return None
