@@ -47,6 +47,13 @@ MIN_INTERVAL_SECONDS = 1.0
 #: spend the next call on a refusal. Roughly one call's worth of prompt plus completion.
 TOKEN_HEADROOM = 1400
 
+#: Leave this many requests in the provider's allowance untouched, so a later run (or the live
+#: poller) is not left with nothing.
+REQUEST_HEADROOM = 20
+
+#: Longer than this and a window is not worth waiting for inside a batch — fall back instead.
+MAX_WAIT_SECONDS = 120
+
 
 def _parse_duration(value: Any) -> float:
     """Seconds from a rate-limit reset header such as ``1m26.4s``, ``7.66s`` or ``2m``."""
@@ -68,7 +75,11 @@ class LLMStats:
     cache_hits: int = 0
     failures: int = 0
     fallbacks: int = 0
+    #: Our own call budget ran out.
     budget_exhausted: bool = False
+    #: The provider's allowance ran out — a different thing, and worth reporting separately,
+    #: because it is a property of the account rather than a choice this system made.
+    provider_budget_exhausted: bool = False
     #: Time spent deliberately waiting for the provider's window to reset, rather than
     #: spending calls on refusals.
     throttled_seconds: float = 0.0
@@ -81,6 +92,7 @@ class LLMStats:
             "failures": self.failures,
             "fallbacks": self.fallbacks,
             "budget_exhausted": self.budget_exhausted,
+            "provider_budget_exhausted": self.provider_budget_exhausted,
             "throttled_seconds": round(self.throttled_seconds),
             "by_task": dict(self.by_task),
         }
@@ -120,6 +132,7 @@ class LLM:
 
         self._last_call = 0.0
         self._tokens_left: int | None = None
+        self._requests_left: int | None = None
         self._window_resets_at = 0.0
         self.enabled = self.settings.llm_configured
         if self.enabled:
@@ -138,6 +151,20 @@ class LLM:
     @property
     def budget_left(self) -> int:
         return max(0, self.settings.llm_max_calls - self.stats.calls)
+
+    @property
+    def available(self) -> bool:
+        """Whether a call is worth attempting at all.
+
+        Checked before each task builds its prompt, so an exhausted account costs nothing but a
+        comparison and every caller falls straight through to its template.
+        """
+
+        return (
+            self.enabled
+            and not self.stats.provider_budget_exhausted
+            and self.budget_left > 0
+        )
 
     # -- pacing -------------------------------------------------------------------------------
 
@@ -164,17 +191,36 @@ class LLM:
         self._last_call = time.monotonic()
 
     def _note_headroom(self, headers: Any) -> None:
-        """Record what the provider says is left in the current window."""
+        """Record what the provider says is left, in both of its windows.
 
-        remaining = headers.get("x-ratelimit-remaining-tokens")
-        reset = headers.get("x-ratelimit-reset-tokens")
-        if remaining is None:
-            return
-        try:
-            self._tokens_left = int(float(remaining))
-        except (TypeError, ValueError):
-            return
-        self._window_resets_at = time.monotonic() + _parse_duration(reset)
+        There are two, and they behave nothing alike. Tokens are metered per minute and refill
+        continuously — a short wait fixes that. Requests are metered over hours, and when they
+        run out no amount of waiting helps inside a batch. Treating the second like the first is
+        how a run produces hundreds of refusals instead of stopping and using templates.
+        """
+
+        def _int(name: str) -> int | None:
+            raw = headers.get(name)
+            try:
+                return int(float(raw)) if raw is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        tokens = _int("x-ratelimit-remaining-tokens")
+        if tokens is not None:
+            self._tokens_left = tokens
+            self._window_resets_at = time.monotonic() + _parse_duration(
+                headers.get("x-ratelimit-reset-tokens")
+            )
+
+        requests_left = _int("x-ratelimit-remaining-requests")
+        if requests_left is not None:
+            self._requests_left = requests_left
+            reset = _parse_duration(headers.get("x-ratelimit-reset-requests"))
+            # A request allowance that takes hours to refill cannot be waited out mid-batch.
+            # Stop asking, record it, and let every caller fall back to a template.
+            if requests_left <= REQUEST_HEADROOM and reset > MAX_WAIT_SECONDS:
+                self.stats.provider_budget_exhausted = True
 
     # -- transport ----------------------------------------------------------------------------
 
@@ -194,6 +240,9 @@ class LLM:
 
         if self.budget_left <= 0:
             self.stats.budget_exhausted = True
+            return None
+        if self.stats.provider_budget_exhausted:
+            # The account's allowance is spent for hours. Every caller has a template.
             return None
 
         for attempt, pause in enumerate((0, *BACKOFF_SECONDS)):
@@ -239,7 +288,7 @@ class LLM:
     def compose_message(self, ctx: Any) -> str | None:
         """Write one customer message. Returns ``None`` to mean "use the template"."""
 
-        if not self.enabled:
+        if not self.available:
             return None
 
         result = self._chat(
@@ -267,7 +316,7 @@ class LLM:
         return text.strip() if isinstance(text, str) and text.strip() else None
 
     def parse_reply(self, text: str, today: str) -> dict[str, Any] | None:
-        if not self.enabled:
+        if not self.available:
             return None
 
         result = self._chat(
@@ -281,7 +330,7 @@ class LLM:
         return result
 
     def explain_diagnosis(self, case: Any) -> str | None:
-        if not self.enabled:
+        if not self.available:
             return None
 
         error = case.error
@@ -304,7 +353,7 @@ class LLM:
         return explanation.strip() if isinstance(explanation, str) else None
 
     def write_brief(self, case: Any, reasons: list[str], replies: list[str]) -> str | None:
-        if not self.enabled:
+        if not self.available:
             return None
 
         result = self._chat(
@@ -333,7 +382,7 @@ class LLM:
     def advise_action(
         self, case: Any, allowed: list[str], denied: list[str], replies: list[str]
     ) -> dict[str, Any] | None:
-        if not self.enabled:
+        if not self.available:
             return None
 
         result = self._chat(

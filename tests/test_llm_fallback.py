@@ -300,3 +300,48 @@ def test_missing_headers_do_not_break_pacing():
     llm._note_headroom(Empty())
     assert llm._tokens_left is None
     llm._pace()  # must not raise
+
+
+def test_an_exhausted_request_allowance_stops_calling_rather_than_failing():
+    """Tokens refill in a second; requests take hours. Waiting out the second is sensible,
+    hammering the first is how a run collects 720 refusals instead of using templates."""
+
+    from wapsi.adapters.llm import LLM
+    from wapsi.config import Settings
+
+    llm = LLM(Settings(llm_api_key="k", llm_base_url="http://x", llm_model="m", llm_model_fast="m"),
+              cache=False)
+
+    class Spent:
+        def get(self, key):
+            return {
+                "x-ratelimit-remaining-requests": "3",
+                "x-ratelimit-reset-requests": "2h55m",
+                "x-ratelimit-remaining-tokens": "7900",
+                "x-ratelimit-reset-tokens": "900ms",
+            }.get(key)
+
+    llm._note_headroom(Spent())
+    assert llm.stats.provider_budget_exhausted
+    assert llm.compose_message(object()) is None, "callers get None and fall back to a template"
+
+
+def test_a_short_token_window_is_waited_out_not_treated_as_exhaustion():
+    from wapsi.adapters.llm import LLM
+    from wapsi.config import Settings
+
+    llm = LLM(Settings(llm_api_key="k", llm_base_url="http://x", llm_model="m", llm_model_fast="m"),
+              cache=False)
+
+    class Busy:
+        def get(self, key):
+            return {
+                "x-ratelimit-remaining-requests": "800",
+                "x-ratelimit-reset-requests": "2h55m",
+                "x-ratelimit-remaining-tokens": "200",
+                "x-ratelimit-reset-tokens": "900ms",
+            }.get(key)
+
+    llm._note_headroom(Busy())
+    assert not llm.stats.provider_budget_exhausted
+    assert llm._tokens_left == 200
