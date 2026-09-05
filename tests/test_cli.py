@@ -7,6 +7,8 @@ fatal the moment someone ran it. These are cheap smoke tests against that whole 
 
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 from typer.testing import CliRunner
 
@@ -145,29 +147,36 @@ def test_the_committed_results_are_the_ones_the_readme_quotes():
     """Guard the evidence against a stray `simulate` overwriting it.
 
     `bharpai simulate` rewrites `results/` with whatever policies were asked for, so running it
-    with a smaller batch — or without the model-advised row — silently replaces the figures the
-    README, the report and the video script all quote. That has happened twice. A reviewer would
-    see a README claiming numbers its own `summary.json` does not contain, which is worse than any
-    bug in the code.
+    with a smaller batch — or without the model-advised row — replaces the figures the README, the
+    report and the video script all quote. That has happened twice, and a README quoting numbers
+    its own `summary.json` does not contain is worse than any bug in the code.
+
+    It reads what is *committed*, not what is on disk. Running the batch is the normal way to use
+    this project and leaves `results/` dirty by design; only carrying that into a commit is the
+    mistake worth failing over. Checking the working tree instead would fail during any ordinary
+    demo — which it did, on the day it was written.
     """
 
     import json
+    import subprocess
 
-    from bharpai.config import RESULTS_DIR
+    committed = subprocess.run(
+        ["git", "show", "HEAD:results/summary.json"],
+        capture_output=True,
+        cwd=pathlib.Path(__file__).resolve().parent.parent,
+    )
+    if committed.returncode != 0:
+        pytest.skip("not a git checkout, or no results committed yet")
 
-    summary = RESULTS_DIR / "summary.json"
-    if not summary.exists():
-        pytest.skip("no batch has been run in this checkout")
-
-    data = json.loads(summary.read_text(encoding="utf-8"))
+    data = json.loads(committed.stdout.decode("utf-8"))
     policies = [p["policy"] for p in data["policies"]]
 
     assert data["meta"]["n"] == 500, (
-        f"committed results are a {data['meta']['n']}-case batch; the README quotes 500. "
+        f"the committed results are a {data['meta']['n']}-case batch; the README quotes 500. "
         "Restore with: git checkout -- results/"
     )
     for expected in ("do_nothing", "platform", "naive", "rules", "agent"):
         assert expected in policies, (
-            f"committed results are missing the {expected!r} row. "
+            f"the committed results are missing the {expected!r} row. "
             "Restore with: git checkout -- results/"
         )
