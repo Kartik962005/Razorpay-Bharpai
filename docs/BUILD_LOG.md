@@ -410,3 +410,27 @@ invoked the CLI.
 itself. 192 tests now. Re-ran the full batch afterwards and confirmed every policy's recovered
 count and net rupees are identical to the committed run — a session of bug fixes that moves a
 headline number is a session that introduced something.
+
+## 2026-09-05 — the loop closed
+
+Fourteen hours after a real netbanking payment failed on the test account, the agent recovered it.
+The whole trail is in `results/live_recovery.md`; four lines matter.
+
+At 23:24 it ingested the failure from the Razorpay API and diagnosed it from Razorpay's own error
+fields. At 23:25 it declined to act — ₹428 of expected recovery sitting there, and it scheduled for
+10:00 because TRAI permits customer messaging between 10:00 and 21:00. At 10:07 the window opened
+and it created a real payment link, tagged with the case id, and sent it. At 10:13, after the
+payment arrived, it refetched status before acting again, found the money, and closed the case
+under R01 instead of sending a second message.
+
+Eighty paise, one message, ₹1,299 recovered.
+
+The R01 line is the one worth pointing at, because that guard did not work on the live path until
+the night before. A case created from a failed payment carries an order id, and the check looked
+only at payment links, invoices and subscriptions — so a customer who went back and paid would have
+kept being chased. Seeing the fixed version fire correctly on a real payment is better evidence
+than any test.
+
+Nothing about the run was arranged. The overnight deferral happened because the agent decided it
+at half past eleven, and the recovery happened because the window opened, not because anybody
+started it.
