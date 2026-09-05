@@ -22,7 +22,7 @@ your own voice before pasting; they are drafts, not a script.
 
 **Project name** — Bharpai
 
-**GitHub repo** — https://github.com/Kartik962005/Razorpay-Wapsi-
+**GitHub repo** — https://github.com/Kartik962005/Razorpay-Bharpai
 
 **Pitch video** — *(unlisted link)*
 

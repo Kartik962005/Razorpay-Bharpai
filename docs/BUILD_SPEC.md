@@ -7,7 +7,7 @@ conflicts with reality (an API behaves differently, a rate limit bites), fix it,
 
 ## 0. Ground rules
 
-- Repo: `https://github.com/Kartik962005/Razorpay-Wapsi-` (branch `main`, solo).
+- Repo: `https://github.com/Kartik962005/Razorpay-Bharpai` (branch `main`, solo).
 - The language model inside the product is any OpenAI-compatible endpoint. The model id lives
   only in `.env`, never in code, because model catalogues rotate (see BUILD_LOG).
 - Secrets only in `.env` (gitignored). `.env.example` has placeholders only. Before every push:
@@ -24,7 +24,7 @@ conflicts with reality (an API behaves differently, a rate limit bites), fix it,
 ## 1. Repository layout
 
 ```
-Razorpay-Wapsi-/
+Razorpay-Bharpai/
   README.md                     # pitch, results table, run-in-3-commands, honesty section
   pyproject.toml                # package `bharpai`, console script `bharpai = bharpai.cli:app`
   policy.yaml                   # every bound and stopping rule, with rule ids

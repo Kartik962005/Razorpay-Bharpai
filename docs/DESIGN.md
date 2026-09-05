@@ -249,7 +249,7 @@ net ₹, violations, per-cause, sensitivity (60 s) · 4:15 what broke and how we
 
 ## 14. Decisions (resolved 2026-09-04)
 
-1. Project name: **Bharpai**. Repo: https://github.com/Kartik962005/Razorpay-Wapsi-
+1. Project name: **Bharpai**. Repo: https://github.com/Kartik962005/Razorpay-Bharpai
 2. LLM provider: **Groq** via the OpenAI-compatible endpoint (`LLM_BASE_URL=https://api.groq.com/openai/v1`); model ids only in `.env`.
 3. Dashboard: minimal static HTML page served by FastAPI.
 4. Messaging: English + Hinglish.
