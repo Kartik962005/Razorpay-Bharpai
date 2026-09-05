@@ -309,5 +309,5 @@ wapsi/sim/        world · customer · generator · runner · baselines · confi
 wapsi/live/       seed · poller · webhook · state
 wapsi/api/        FastAPI app + dashboard
 policy.yaml       every bound, in one file
-tests/            192 tests
+tests/            194 tests
 ```

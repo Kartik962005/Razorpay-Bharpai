@@ -154,7 +154,7 @@ This is the literal answer to their question, and it happened at 01:36.
 pytest -q
 ```
 
-> "192 tests, no network, CI on Linux and Windows with no keys. Clone it, `pip install -e .`,
+> "194 tests, no network, CI on Linux and Windows with no keys. Clone it, `pip install -e .`,
 > `wapsi simulate` — no API key needed, and it reproduces every number I just showed you. The
 > language model is optional throughout; without one it runs on templates and pattern matching and
 > the batch result is the same."
