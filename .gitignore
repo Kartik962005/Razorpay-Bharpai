@@ -4,7 +4,9 @@ __pycache__/
 *.pyc
 *.sqlite
 *.db
-results/*.jsonl
+# Audit logs are large and regenerated deterministically; the summaries are committed.
+results/**/*.jsonl
+results/full/
 .pytest_cache/
 .mypy_cache/
 dist/
