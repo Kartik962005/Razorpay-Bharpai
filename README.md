@@ -162,8 +162,6 @@ with it. `wapsi rules` prints them all.
 | No threats, no legal or credit-bureau claims, no internal jargon | R40 | RBI Fair Practices Code |
 | A promise to pay buys silence until it lapses | R41 | — |
 
-`wapsi rules` prints them all.
-
 ### 3. Decide *when*, not just what
 
 The planner scores **(action, time) pairs** across a three-day horizon, snaps each to the earliest
@@ -241,7 +239,7 @@ that it was deliberately kept out of the decisions that move money.
 ## Run it
 
 ```bash
-python -m venv .venv && .venv/bin/pip install -e .     # .venv\Scripts\pip on Windows
+python -m venv .venv && .venv/bin/pip install -e ".[dev]"   # .venv\Scripts\pip on Windows
 wapsi simulate --n 500
 ```
 
@@ -267,7 +265,7 @@ wapsi simulate --n 500 --policies do_nothing,platform,naive,rules,agent --adviso
 
 ```bash
 cp .env.example .env            # add test-mode keys; a model key is optional
-wapsi live doctor               # checks keys, models, and reads your webhook config back
+wapsi live doctor               # keys, model, and whether the webhook endpoint answers
 wapsi live seed                 # creates customers, payment links, an invoice, a subscription
 wapsi live watch                # polls, diagnoses, and runs the recovery loop
 ```
@@ -320,10 +318,9 @@ creates a real recovery link you can see in your dashboard.
   due date in the past, so the poller marks the seeded one overdue when it ingests it. The
   receivables *rules* are then real — the 19:00 window, the 72-hour spacing — but the overdue
   condition that triggers them is arranged rather than observed.
-- **Abandoned checkouts are our weakest class** (12% against a 9% baseline). The TRAI window costs
-  us the golden first hour after abandonment, and we accept that rather than message at 03:00.
-- **Overdue receivables are a tie with the naive policy** (65% vs 66%) — which reaches that number
-  by breaking rules 2,256 times.
+- **Two classes go the other way, and they are named in the results above** rather than buried
+  here: abandoned checkouts are the weakest outright at 12%, and overdue receivables are the one
+  class the naive policy actually wins, 66% to 58%.
 
 ---
 
