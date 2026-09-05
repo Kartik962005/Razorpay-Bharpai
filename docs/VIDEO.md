@@ -20,10 +20,16 @@ starts with the package name, so a rename after the fact means recording again.
 
 1. One window, full screen, no other applications, notifications off.
 2. Font at **16pt or larger**. The audit lines are the whole point and they must be legible.
-3. `cd` into the repo and activate the venv, so the first thing on screen is your first command:
+3. `cd` into the repo and activate the venv, so the first thing on screen is your first
+   command. In PowerShell both the full path and the leading `.\` matter — without them you
+   get `CommandNotFoundException`:
    ```
-   .venv\Scripts\activate
+   cd C:\Users\karti\.claude\projects\Razorpay
+   .\.venv\Scripts\Activate.ps1
    ```
+   The prompt should then begin with `(.venv)`. If activation is ever refused, every command
+   still works spelled out as `.venv\Scripts\bharpai.exe ...` — but activate it anyway, because
+   a bare `bharpai` is what you want people to see on camera.
 4. **Check the terminal width.** Run this:
    ```
    bharpai simulate --n 60
