@@ -43,8 +43,31 @@ CONSOLE_COLUMNS = [
     ("violations", "violations"),
 ]
 
+#: Columns to surrender, in order, when the terminal is too narrow for all of them. A truncated
+#: table is worse than a shorter one: "₹1,7…" tells a reader nothing, and this table is the whole
+#: argument. Everything dropped here is still in `results/report.md` and `results/summary.json`.
+#: `net` and `violations` are never dropped — they are the comparison.
+DROP_ORDER = ["cost", "vs_baseline", "recovered_value", "disputes", "opt_outs", "recovery_rate"]
+
+
+def _fit(columns: list[tuple[str, str]], rows: list[dict], width: int) -> list[tuple[str, str]]:
+    """Drop the least important columns until the table renders untruncated."""
+
+    def needed(cols: list[tuple[str, str]]) -> int:
+        # Rich spends 3 characters per column on borders and padding, plus one closing edge.
+        return sum(max(len(label), *(len(str(r[key])) for r in rows)) + 3 for key, label in cols) + 1
+
+    kept = list(columns)
+    for key in DROP_ORDER:
+        if needed(kept) <= width:
+            break
+        kept = [c for c in kept if c[0] != key]
+    return kept
+
 
 def _render_table(rows: list[dict], columns: list[tuple[str, str]], title: str) -> Table:
+    if rows:
+        columns = _fit(columns, rows, console.width)
     table = Table(title=title, header_style="bold", title_style="bold")
     for _, label in columns:
         table.add_column(label, justify="right" if label != "policy" else "left")

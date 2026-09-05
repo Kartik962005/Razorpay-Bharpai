@@ -4,28 +4,34 @@ They asked for a repo that runs, a video of it running, and what broke at 2 a.m.
 screen recording of the terminal, not a slide deck. Every command below is real, and every one is
 fast enough to record live — measured on this machine:
 
-| command | time |
+| command | measured |
 |---|---|
-| `wapsi simulate --n 500` (4 policies) | 13s idle, ~30s under load |
-| `wapsi rules` | under 2s |
-| `wapsi case case_0134` | under 2s |
-| `wapsi case live_pay_…` | under 2s |
-| `wapsi live doctor` | 4–10s (it calls the Razorpay API) |
-| `wapsi live watch --once` | 5–8s (same) |
+| `wapsi simulate --n 500` (4 policies) | 14s idle, ~30s under load |
+| `wapsi rules` | 1s |
+| `wapsi case case_0134` | 1s |
+| `wapsi case live_pay_…` | 1s |
+| `wapsi live doctor` | 6s (Razorpay API, the model, and a webhook probe) |
+| `wapsi live watch --once` | 5s (same) |
+| `pytest` | 17–24s |
 
-Under a minute of machine time in a five-minute video. Nothing needs cutting or speeding up — but
-close other heavy applications first, since the batch is the one command long enough to feel slow
-if the machine is busy. Talk while it runs; the pause is not dead air if you are explaining what
-it is doing.
+About a minute of machine time in a five-minute video. Two of them are long enough to need
+covering with speech rather than watched in silence: the batch, and `pytest` at the close. Neither
+is dead air if you are talking through what it is doing. Close other heavy applications first —
+the batch is the one command that stretches noticeably on a busy machine.
 
 ## Before you hit record
 
 - Terminal at a large font — 16pt or more. The audit lines are the point and they must be legible.
+- **Check the width before you record: `wapsi simulate --n 60` and count the columns in the
+  table.** It sheds columns rather than truncating numbers, so a narrow window silently costs you
+  the disputes column — and "126 chargebacks" is a line in the script. Below about 90 columns that
+  column disappears. If it is missing, drop a point of font size or widen the window until it is
+  back; every width still shows recovered, rate, ₹ net, messages, opt-outs and violations.
 - Full screen, no notifications, one window.
 - `cd` into the repo and activate the venv so the first command is the first thing on screen.
 - Have `results/live_recovery.md` open in a second tab as a fallback if the live account misbehaves.
-- Optional title and closing cards: the slide deck at the artifact link — use only slide 1 at the
-  start and the last slide at the end. The middle is the terminal.
+- No slides. Open on the terminal and end on the terminal; the repo URL on screen at the close
+  is the only card needed.
 
 ---
 
@@ -54,7 +60,7 @@ When the table lands, read the row that matters:
 
 > "Row two is Razorpay's own defaults — the subscription retry ladder and reminder_enable, what a
 > merchant gets from the platform unprompted. That's the fair comparison, and it recovers ₹14.5
-> lakh. Wapsi recovers ₹17.6 lakh, with a third fewer messages — 816 against 1,196 — and loses 61
+> lakh. Wapsi recovers ₹17.2 lakh, with a third fewer messages — 816 against 1,196 — and loses 62
 > customers to opt-outs instead of 140.
 >
 > Row three is untuned merchant automation. It breaks the rules 2,256 times, and 126 of its
@@ -97,7 +103,20 @@ Then say the thing most submissions will not:
 wapsi live doctor
 ```
 
-> "This is a real Razorpay test account. Keys, model, webhook, all live."
+> "This is a real Razorpay test account — keys and model live, and the agent's own preflight. The
+> webhook is registered and has taken 24 events, but the tunnel I used for it isn't running now
+> and the check says so rather than trusting Razorpay's `active` flag. Polling is the default path
+> here precisely so none of this needs a public URL: clone it, add a test key, and the whole loop
+> works."
+
+That row is worth the eight seconds. A preflight that reports its own broken dependency is a
+better advert than one that prints green.
+
+**If you would rather have it green:** run `wapsi serve` in a second terminal, then
+`cloudflared tunnel --url http://localhost:8000`, and paste the new hostname into the Razorpay
+dashboard webhook — quick tunnels get a fresh hostname each time, so the registered URL must be
+updated. Recommended only if you have already done it once today; nothing in the video depends on
+the webhook, and a tunnel is one more thing to fail on camera.
 
 Then the completed loop:
 
@@ -163,15 +182,18 @@ This is the literal answer to their question, and it happened at 01:36.
 ## 4:40 – 5:00 · Close
 
 ```bash
-pytest -q
+pytest
 ```
 
-> "206 tests, no network, CI on Linux and Windows with no keys. Clone it, `pip install -e .`,
+Start it, then say the closing lines over the dots — it takes about twenty seconds and the count
+lands as you finish:
+
+> "215 tests, no network, CI on Linux and Windows with no keys. Clone it, `pip install -e .`,
 > `wapsi simulate` — no API key needed, and it reproduces every number I just showed you. The
 > language model is optional throughout; without one it runs on templates and pattern matching and
 > the batch result is the same."
 
-End on the repo URL.
+The last frame should be `215 passed`. End there, with the repo URL on screen.
 
 ---
 

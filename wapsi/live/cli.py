@@ -37,6 +37,34 @@ def _client():
     return client
 
 
+def _reachable(url: str) -> str:
+    """Knock on the registered webhook endpoint and report what actually answered.
+
+    An unsigned POST is the right probe: a receiver that is running rejects it with 400 for a
+    signature mismatch, which proves both that something is listening *and* that it is verifying
+    signatures. A 200 to an unsigned body would be the alarming answer.
+    """
+
+    if not url:
+        return "[yellow]no url registered[/yellow]"
+    try:
+        import requests
+
+        response = requests.post(
+            url, data=b"{}", headers={"x-razorpay-signature": "probe"}, timeout=8
+        )
+    except Exception as exc:  # noqa: BLE001
+        return (
+            f"[red]no[/red] — nothing answered ({type(exc).__name__}). Polling still works; "
+            "`wapsi live watch` needs no tunnel."
+        )
+    if response.status_code == 400:
+        return "[green]yes[/green] — listening, and it rejected an unsigned probe"
+    if response.status_code == 200:
+        return "[red]answered 200 to an unsigned request[/red] — the secret is not being checked"
+    return f"[yellow]answered {response.status_code}[/yellow] — something is there, but not the app"
+
+
 @live.command()
 def doctor() -> None:
     """Check the account, the models and the webhook before relying on any of them.
@@ -85,6 +113,11 @@ def doctor() -> None:
                 warning = "" if url.rstrip("/").endswith("/webhooks/razorpay") else \
                     "  [yellow](no /webhooks/razorpay path — the app accepts / too, but set it)[/yellow]"
                 table.add_row("webhook", f"{url} · {events} events · active={hook.get('active')}{warning}")
+                # `active` is Razorpay's view of its own configuration, not a statement about
+                # whether anything is listening. A tunnel that has since been closed reports
+                # active=True forever, which is exactly the false confidence this command exists
+                # to remove — so the endpoint is actually knocked on.
+                table.add_row("webhook reachable", _reachable(url))
         except Exception as exc:  # noqa: BLE001
             table.add_row("webhook", f"[yellow]could not read: {exc}[/yellow]")
 

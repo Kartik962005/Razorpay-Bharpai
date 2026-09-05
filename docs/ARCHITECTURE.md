@@ -148,7 +148,7 @@ not a defence.
 
 ## Testing
 
-206 tests, no network required.
+215 tests, no network required.
 
 | area | what is pinned |
 |---|---|

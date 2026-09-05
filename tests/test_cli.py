@@ -102,3 +102,40 @@ def test_an_unknown_live_case_says_how_to_produce_one(isolated_state):
     result = runner.invoke(app, ["case", "live_pay_NOPE"])
     assert result.exit_code == 1
     assert "wapsi live watch" in result.output
+
+
+def test_the_results_table_never_truncates_the_numbers_it_exists_to_show():
+    """A table squeezed into a narrow terminal renders "₹1,7…", which tells a reader nothing.
+
+    This is the one visual the whole comparison rests on, so it sheds columns rather than
+    characters. Everything dropped is still in report.md and summary.json.
+    """
+
+    from wapsi.cli import CONSOLE_COLUMNS, _fit
+
+    rows = [
+        {
+            "policy": "do_nothing", "recovered": 111, "recovery_rate": "22.2%",
+            "recovered_value": "₹453,210", "cost": "₹13", "net": "₹453,197",
+            "vs_baseline": "₹0", "contacts": 0, "opt_outs": 0, "disputes": 0, "violations": 0,
+        },
+        {
+            "policy": "rules", "recovered": 233, "recovery_rate": "46.6%",
+            "recovered_value": "₹1,724,498", "cost": "₹659", "net": "₹1,723,840",
+            "vs_baseline": "₹1,270,643", "contacts": 816, "opt_outs": 62,
+            "disputes": 1, "violations": 0,
+        },
+    ]
+
+    for width in (60, 80, 100, 120, 200):
+        kept = _fit(CONSOLE_COLUMNS, rows, width)
+        rendered = sum(max(len(label), *(len(str(r[key])) for r in rows)) + 3 for key, label in kept) + 1
+        assert rendered <= width or len(kept) == 5, f"{width} columns still overflows: {rendered}"
+
+        # The comparison itself is never surrendered, however narrow the terminal.
+        keys = [key for key, _ in kept]
+        assert "policy" in keys and "net" in keys and "violations" in keys
+        assert "recovered" in keys
+
+    # A wide terminal keeps everything.
+    assert _fit(CONSOLE_COLUMNS, rows, 200) == CONSOLE_COLUMNS

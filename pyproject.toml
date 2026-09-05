@@ -66,3 +66,8 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+filterwarnings = [
+    # starlette's TestClient imports a deprecated anyio alias. Nothing here can fix it, and its
+    # traceback was the last thing printed after a clean run, which reads as a failure.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]

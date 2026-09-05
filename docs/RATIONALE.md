@@ -139,7 +139,7 @@ one is a property of the account and the other a choice this system made.
 - hostile assumptions (penalties stripped, chargebacks free): Wapsi ₹20.1L, naive ₹18.0L,
   defaults ₹15.4L — ranking unchanged
 - 51 false nudges, counted against ourselves
-- 206 tests, no network; CI on Linux and Windows, no keys
+- 215 tests, no network; CI on Linux and Windows, no keys
 
 ### "What's the worst bug you shipped and caught?"
 
