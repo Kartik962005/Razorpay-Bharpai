@@ -90,10 +90,11 @@ vocabulary in customer text).
 
 ### "What are the weaknesses?"
 
-Abandoned checkouts are the weakest class — 13% against 9% —
-because the TRAI window costs the golden first hour, and you chose compliance over the 03:00
-message. Overdue receivables are a tie with the naive policy, which gets there by breaking rules
-2,256 times. The live demo cannot show a silent retry because test mode has no server-side charge.
+Abandoned checkouts are the weakest class — 12% against a 9% baseline — because the TRAI window
+costs the golden first hour after a cart is left, and the alternative is messaging someone at 3
+a.m. Overdue receivables are the one class the naive policy actually wins, 66% against 58%; it
+gets there by emailing every three days forever, which is where most of its 2,256 rule violations
+come from. The live demo cannot show a silent retry because test mode has no server-side charge.
 And the measured results are a simulation, for the reason that test mode cannot produce five
 hundred failures.
 
@@ -108,17 +109,20 @@ that turns this from a defensible estimate into a measurement.
 
 Because that is what Indian merchants actually send, and a message in the customer's register
 converts better than one in the merchant's. The simulation gives a 15% lift for a language match.
-The model was asked for Hinglish 36 times in the final batch and produced genuine Hinglish 36
+The model was asked for Hinglish 406 times in the final batch and produced genuine Hinglish 406
 times — after a prompt fix, because the first version produced English with a Hindi sign-off,
 which the report now measures so it cannot regress silently.
 
-### "Half your model calls failed."
+### "What happens when the model is unavailable?"
 
-Yes — 292 of 600 in the final batch, a free tier's daily quota after a day of runs. Why it did
-not matter: every failed call fell back to a template, the run
-completed, the numbers are reported, and the batch result does not depend on the model at all — it
-runs identically with no key. A system whose correctness survives its model being unavailable half
-the time is the design, not an accident.
+It was, for most of the first attempts at this batch — a free tier metering 1,000 requests per
+three hours against a run needing roughly 1,200. Every refused call fell back to a template, the
+run completed, and the recovery numbers were unchanged. That is not luck: the batch result does
+not depend on the model at all, and the whole system runs identically with no key.
+
+The adapter now paces itself against whatever the provider reports — token windows are waited out,
+an exhausted request allowance stops the calling entirely — and reports the two separately, since
+one is a property of the account and the other a choice this system made.
 
 ---
 
@@ -126,16 +130,16 @@ the time is the design, not an accident.
 
 - 500 cases, seed 42, identical batch for every policy
 - do nothing 22.2% · **Razorpay defaults 28.2%** · naive 29.6% · Wapsi 46.6%
-- ₹17.6L net · defaults ₹14.5L · naive ₹15.8L · nothing ₹4.5L
+- ₹17.2L net · defaults ₹14.5L · naive ₹15.8L · nothing ₹4.5L
 - **₹2.8L above the platform's own defaults**, with 816 messages to their 1,196 and 62 opt-outs
   to their 140 — the fair comparison, and the one the README leads with
-- strict figure ₹14.3L excluding every case that would have resolved itself
+- strict figure ₹13.9L excluding every case that would have resolved itself
 - 0 violations against naive's 2,256, of which 112 were messages to people who said stop
 - 1 dispute against naive's 126 and the defaults' 13
 - hostile assumptions (penalties stripped, chargebacks free): Wapsi ₹20.1L, naive ₹18.0L,
   defaults ₹15.4L — ranking unchanged
 - 51 false nudges, counted against ourselves
-- 194 tests, no network; CI on Linux and Windows, no keys
+- 206 tests, no network; CI on Linux and Windows, no keys
 
 ### "What's the worst bug you shipped and caught?"
 

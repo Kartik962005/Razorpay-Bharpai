@@ -52,17 +52,23 @@ Recovery rate by root cause — this is where cause-awareness shows up:
 
 | root cause | cases | do nothing | naive | **Wapsi** |
 |---|---|---|---|---|
+| merchant misconfiguration | 10 | 10% | 10% | **100%** |
 | bank/PSP outage | 50 | 42% | 16% | **86%** |
 | daily limit hit | 28 | 29% | 18% | **82%** |
-| merchant misconfiguration | 10 | 10% | 10% | **100%** |
-| insufficient funds | 98 | 41% | 47% | **60%** |
-| blocked instrument | 22 | 27% | 27% | **50%** |
-| customer input error | 29 | 17% | 17% | **38%** |
-| abandoned checkout | 91 | 9% | 9% | 13% |
-| overdue receivable | 79 | 14% | **66%** | 65% |
+| overdue receivable | 79 | 14% | **66%** | 58% |
+| insufficient funds | 98 | 41% | 47% | **57%** |
+| blocked instrument | 22 | 27% | 27% | **36%** |
+| customer input error | 29 | 17% | 17% | **31%** |
+| abandoned checkout | 91 | 9% | 9% | 12% |
 
 Retrying into an outage is worse than doing nothing — the naive policy proves it, scoring 16%
 against a 42% baseline on exactly the class of failure that retrying is supposed to fix.
+
+Two rows go the other way and are worth naming. **Overdue receivables** are the one class where
+the naive policy beats Wapsi, 66% against 58% — it gets there by emailing every three days
+forever, which is most of where its 2,256 rule violations come from. And **abandoned checkouts**
+are the weakest class outright, 12% against a 9% baseline: the TRAI window costs the golden first
+hour after someone leaves a cart, and the alternative is messaging them at 3 a.m.
 
 **Sensitivity, two ways.** First, every behaviour prior scaled by 0.7 and 1.3: the ranking is
 unchanged. Second — the test a sceptical reviewer should demand — every assumption that *flatters*
@@ -135,8 +141,10 @@ on `source`, and failing that becomes `UNKNOWN` and is handled conservatively.
 
 ### 2. Decide — bounded, with a rule id for every answer
 
-[`policy.yaml`](policy.yaml) holds every bound in one readable file. Nothing is duplicated in
-code; change a number there and the whole system changes with it.
+[`policy.yaml`](policy.yaml) holds every bound in one readable file — 26 rules, with ids
+running R01 to R41 so that related rules sit in the same decade and new ones can be added without
+renumbering. Nothing is duplicated in code; change a number there and the whole system changes
+with it. `wapsi rules` prints them all.
 
 | | rule | source |
 |---|---|---|
@@ -276,21 +284,22 @@ creates a real recovery link you can see in your dashboard.
 - **The agent does not hold the answer key.** Its beliefs live in `core/taxonomy.py`; the
   simulation's truth lives in `sim/config.yaml`; the two are deliberately different shapes. A test
   asserts no hidden field is reachable from the object the planner plans against.
-- **Recovery is reported twice.** ₹17.6L is the gross figure. Excluding every case the simulation
-  says would have resolved itself anyway, the strict figure is **₹14.3L** — against ₹83k for doing
+- **Recovery is reported twice.** ₹17.2L is the gross figure. Excluding every case the simulation
+  says would have resolved itself anyway, the strict figure is **₹13.9L** — against ₹83k for doing
   nothing. Both are in `results/summary.json`.
 - **We count our own false nudges.** 51 customers were contacted who would have paid unprompted.
   That is a cost, and it is in the report.
-- **The model is rate-limited and budgeted.** In the final batch 292 of 600 calls failed — a free
-  tier's daily quota, after a day of runs — and the budget ran out partway through, so 850 of the
-  897 messages came from templates and 47 from the model. The run completed anyway, every
-  model-written message passed the guardrails but one, and all 36 asked for in Hinglish were
-  genuinely Hinglish. That is what the budget and the fallback are for, and the report prints these
-  numbers for every run rather than leaving them to be discovered.
+- **The model is rate-limited and budgeted.** In the final batch 183 of 1,401 calls were refused by
+  a free tier that meters 1,000 requests per three hours — and 131 more were served from a cache
+  rather than spent. 539 of the 898 messages were model-written and 359 fell back to templates. The
+  run completed either way, three model-written messages were rejected by the guardrails and
+  replaced, and all 406 asked for in Hinglish were genuinely Hinglish. That is what the budget and
+  the fallback are for, and the report prints these numbers for every run rather than leaving them
+  to be discovered.
 - **Retries cannot be demonstrated live.** Test mode has no server-side charge endpoint, so
   `retry_charge` reports that plainly instead of faking it, and live mode shows recovery links
   where the batch shows silent retries.
-- **Abandoned checkouts are our weakest class** (13% against a 9% baseline). The TRAI window costs
+- **Abandoned checkouts are our weakest class** (12% against a 9% baseline). The TRAI window costs
   us the golden first hour after abandonment, and we accept that rather than message at 03:00.
 - **Overdue receivables are a tie with the naive policy** (65% vs 66%) — which reaches that number
   by breaking rules 2,256 times.
@@ -329,5 +338,5 @@ wapsi/sim/        world · customer · generator · runner · baselines · confi
 wapsi/live/       seed · poller · webhook · state
 wapsi/api/        FastAPI app + dashboard
 policy.yaml       every bound, in one file
-tests/            194 tests
+tests/            206 tests
 ```

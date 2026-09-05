@@ -17,7 +17,7 @@ statements about the same system rather than two separate demos.
                     │        │         over a 3-day horizon        │
                     │        │                                     │
                     │        ▼                                     │
-                    │  policy.py       R01–R41: allow / deny,      │
+                    │  policy.py       26 rules: allow / deny,      │
                     │        │         and *when* instead          │◄── policy.yaml
                     │        │              ▲                      │
                     │        │              │ veto                 │
@@ -148,7 +148,7 @@ not a defence.
 
 ## Testing
 
-194 tests, no network required.
+206 tests, no network required.
 
 | area | what is pinned |
 |---|---|

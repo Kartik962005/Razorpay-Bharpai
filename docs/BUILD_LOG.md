@@ -191,7 +191,7 @@ were therefore reading replies with the model and planning almost identically, s
 measured nothing. The model is now scoped to the agent policy alone, for reading as well as for
 planning. Worth noting what this cost the headline number: once the agent had to act on what it
 *read* from replies rather than on what the customer actually meant, the deterministic policy's
-net recovery fell from ₹18.3L to ₹17.6L. That gap is the price of imperfect comprehension, and it
+net recovery fell from ₹18.3L to ₹17.2L. That gap is the price of imperfect comprehension, and it
 belongs in the result rather than being hidden by a leak of ground truth.
 
 **What the model was actually worth.** With the boundary fixed, the model-advised policy recovered
@@ -298,8 +298,8 @@ texting at midnight is what bad automation does, but nobody is choosing between 
 They are choosing between Wapsi and Razorpay's own defaults — the subscription retry ladder and
 `reminder_enable` on links and invoices. Added a `platform` policy that does exactly and only that,
 with reminders in daytime batches and no retries of one-off payments, and tagged its actions as
-the platform's so it is not scored for rule breaks. It nets ₹14.5L on the batch. Wapsi nets ₹17.6L.
-That ₹3L gap is the honest claim; the ₹13L gap against doing nothing is true but less interesting.
+the platform's so it is not scored for rule breaks. It nets ₹14.5L on the batch. Wapsi nets ₹17.2L.
+That ₹2.8L gap is the honest claim; the ₹13L gap against doing nothing is true but less interesting.
 
 **"Your sensitivity only scales everything uniformly. Turn down the penalties and naive wins."**
 Ran exactly that: night contact barely annoys, opt-outs take twice as many messages, hammering a
@@ -508,3 +508,33 @@ OpenAI-compatible endpoint while the `-lite` ones are reliable, which is the opp
 obvious assumption. The endpoint also returns no rate-limit headers at all, so the adapter's
 pacing became a setting: providers that report headroom are paced from what they report, and
 providers that report nothing are told their own limit.
+
+**The documentation had drifted, and I only found it because I was asked twice.** With the code
+finished I ran a final check, reported everything clean, and was asked whether the check had
+actually been thorough. It had not. I had verified the code and the freshly regenerated results,
+and skipped the prose that quotes them — which is where the errors were.
+
+The per-cause table in the README was wrong in five of its eight rows, stale by several sessions:
+it showed outages at 42% when the fix that took them to 86% was three entries above it in this
+file. The README claimed 41 numbered rules; `RULE_TEXT` has 26, and the ids run R01 to R41 with
+gaps so related rules sit in the same decade. The test count was quoted as 194 when the suite runs
+206. The rationale still described overdue receivables as a tie with the naive baseline when the
+naive baseline now wins that class outright, 66% against 58%. And the honest-limits section still
+described the throttled Groq run — 292 failed calls out of 600, 36 Hinglish requests — after the
+Google run had superseded every one of those numbers with 183 of 1,401 and 406 of 406.
+
+Every one of those overstated the system. That is the direction documentation drifts when nobody
+is checking it, and it is worse than a bug: a bug is visible to anyone who runs the thing, while a
+stale number is only visible to someone who re-derives it.
+
+**Got out:** every figure quoted in prose is now checked against `results/summary.json` and
+`results/report.md` rather than against memory of an earlier run. The regeneration path was never
+the problem — `wapsi simulate` rewrites the results honestly on every run. The problem was the
+sentences around them, which no command rewrites. If this went further the fix would be to
+generate those tables into the README the way the report is generated, so the prose cannot outlive
+the run it describes.
+
+**One process note, since it is the actual lesson.** I reported the earlier check as complete when
+it was not, and the only reason the errors surfaced is that the claim was challenged rather than
+taken. Two of them — the rule count and the per-cause table — would have been read by a reviewer
+who opened the repository and compared the README against `wapsi rules`.
