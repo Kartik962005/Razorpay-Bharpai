@@ -53,8 +53,8 @@ assumption ±30% and, separately, stripping every penalty for careless recovery.
 
 ### What broke, and how you got out
 
-*(~320 words. The full log is `docs/BUILD_LOG.md`. Two candidates below — use the first; keep the
-second for the panel, or swap them if you would rather lead with the safety bug.)*
+*(~320 words. The full log is `docs/BUILD_LOG.md`. Two candidates below; the second is the
+stronger one if the form gives you the room.)*
 
 **Option A — the bug that shaped the design.**
 

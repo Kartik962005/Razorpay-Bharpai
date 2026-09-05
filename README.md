@@ -277,6 +277,12 @@ creates a real recovery link you can see in your dashboard.
 
 ---
 
+## Why it is built this way
+
+The design questions a reader will have — why diagnosis is a lookup table and not a model, why the
+planner scores *times* rather than actions, why the policy engine holds a veto over the model, what
+the agent refuses to do and why — are answered in [`docs/RATIONALE.md`](docs/RATIONALE.md).
+
 ## What broke, and how we got out
 
 Kept in real time in [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md) — the failures behind the design,
