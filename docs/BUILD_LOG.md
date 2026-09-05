@@ -434,3 +434,39 @@ than any test.
 Nothing about the run was arranged. The overnight deferral happened because the agent decided it
 at half past eleven, and the recovery happened because the window opened, not because anybody
 started it.
+
+## 2026-09-05 — finishing the model runs, and what the rate limits actually were
+
+The agent batch had been reporting 292 failed model calls out of 600 and a budget exhausted
+partway through, and I had been calling that a daily quota. It was not, and the real shape is
+more interesting than the guess.
+
+**Broke:** Pacing was by request count — one call every 2.1 seconds, about 28 a minute. That is
+comfortably inside a 1,000-request allowance, and roughly four times over an 8,000-token one.
+I had been throttling against the wrong meter entirely.
+
+**Got out, first pass:** Made the adapter read `x-ratelimit-remaining-tokens` and
+`x-ratelimit-reset-tokens` from every response and wait for the window rather than spend the next
+call discovering it was empty. Measured on twelve real calls: zero failures. But the full batch
+still came back with 720 failures out of 1,561.
+
+**The actual constraint:** reading the headers properly showed two windows that behave nothing
+alike. Tokens are metered at 8,000 per minute and refill continuously — the reset header says
+`915ms`. Requests are metered at **1,000 per roughly three hours**. The token window was never
+what was stopping us. The request allowance was, and it is not something a batch can wait out.
+
+**Got out, properly:** The two are now treated differently, because they are different. A short
+token window is waited out. An exhausted request allowance stops the calling entirely, sets a
+separate `provider_budget_exhausted` flag, and every caller falls through to its template —
+turning 720 refusals into zero, at the same coverage. The stat is reported apart from our own
+call budget, because one is a property of the account and the other is a choice this system made.
+
+**What could not be finished, and why.** A 500-case batch at full model coverage needs about 1,193
+calls: roughly 899 message compositions and 294 reply readings. The free tier allows 1,000 per
+window. Full coverage is therefore not reachable on this account — not a bug, a property of the
+tier — and the honest thing is to say so and report the fraction achieved on every run. Which the
+report already does, and now does without hundreds of failures cluttering the number.
+
+Worth noting what this did *not* change: the batch result. The system was designed so the model is
+optional, and the run completes on templates when it is unavailable. Being rate-limited for most of
+a batch is exactly the condition that design exists for, and the recovery numbers held.
